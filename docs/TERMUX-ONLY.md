@@ -222,16 +222,16 @@ ANGLE → Vulkan:
 
 ```bash
 # Copy to your home (or anywhere in PATH)
-cp config/gpu ~/gpu && chmod +x ~/gpu
+cp config/gpu ~/.local/bin/gpu && chmod +x ~/.local/bin/gpu
 
 # Start the server
-~/gpu
+~/.local/bin/gpu
 
 # Run an app (auto-starts server if needed)
-~/gpu glxgears -info
+~/.local/bin/gpu glxgears -info
 
 # Kill the server
-~/gpu q
+~/.local/bin/gpu q
 ```
 
 The wrapper auto-detects if the virgl server is running and starts it with

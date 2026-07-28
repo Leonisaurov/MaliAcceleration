@@ -117,7 +117,7 @@ The `~/vgl` toolkit from ar37-rs/virgl-angle is **primarily a Termux-native tool
 - **Missing symlinks break ANGLE**: If you see ANGLE init errors, check that `libEGL.so.1`, `libGLESv1_CM.so.1`, `libGLESv2.so.2` exist under `$PREFIX/opt/angle-android/vulkan/`. The `vgl` script creates these symlinks automatically, but a broken install may miss them.
 - **`virgl_test_server` without ANGLE → LLVMPIPE**: Running the plain `virgl_test_server` (no ANGLE backend) silently falls back to software rendering. Always use `~/vgl angle=vulkan` or `~/vgl use-android`.
 - **`~/vgl i` uses apt, not pacman**: The `vgl` script's install command runs `pkg install` internally. If you use pacman, skip `~/vgl i` and install manually: install `dpkg` via pacman, then `dpkg -i` the three `.deb` packages from ar37-rs releases (virglrenderer, angle-android, mesa-vulkan-icd-wrapper).
-- **Use `config/gpu` for convenience**: Copy `config/gpu` to `~/gpu` for a simpler interface. `~/gpu` starts the server, `~/gpu <app>` runs an app with auto-server-start, `~/gpu q` kills it.
+- **Use \`config/gpu\` for convenience**: Copy \`config/gpu\` to \`~/.local/bin/gpu\` for a simpler interface. \`~/.local/bin/gpu\` starts the server, \`~/.local/bin/gpu <app>\` runs an app with auto-server-start, \`~/.local/bin/gpu q\` kills it.
 
 See `docs/TERMUX-ONLY.md` for the complete step-by-step guide.
 

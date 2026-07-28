@@ -45,11 +45,11 @@ This script:
   1. Installs required packages (virglrenderer, angle-android, etc.)
   2. Applies the Mali Vulkan ICD fix (make-or-break)
   3. Downloads the vgl toolkit from ar37-rs/virgl-angle
-  4. Installs the gpu convenience wrapper to ~/gpu
+  4. Installs the gpu convenience wrapper to ~/.local/bin/gpu
   5. Verifies the installation
 
-After running, start the server with:  ~/gpu
-Then in another terminal:              DISPLAY=:1 ~/gpu glxgears -info
+After running, start the server with:  ~/.local/bin/gpu
+Then in another terminal:              DISPLAY=:1 ~/.local/bin/gpu glxgears -info
 EOF
     exit 0
 fi
@@ -227,15 +227,16 @@ echo ""
 # =========================================================================
 echo "${STEP} Step 3/5: Installing gpu wrapper..."
 
-if [ -f "$HOME/gpu" ]; then
-    echo "   ${OK} ~/gpu already installed"
+if [ -f "$HOME/.local/bin/gpu" ]; then
+    echo "   ${OK} ~/.local/bin/gpu already installed"
 else
     if [ -f "$REPO_DIR/config/gpu" ]; then
-        cp "$REPO_DIR/config/gpu" "$HOME/gpu" && chmod +x "$HOME/gpu"
-        echo "${OK} ~/gpu installed from repo"
+        mkdir -p "$HOME/.local/bin"
+        cp "$REPO_DIR/config/gpu" "$HOME/.local/bin/gpu" && chmod +x "$HOME/.local/bin/gpu"
+        echo "${OK} ~/.local/bin/gpu installed from repo"
     else
         # Create gpu wrapper directly
-        cat > "$HOME/gpu" << 'GPUSCRIPT'
+        cat > "$HOME/.local/bin/gpu" << 'GPUSCRIPT'
 #!/data/data/com.termux/files/usr/bin/bash
 VGL="${HOME}/vgl"
 case "${1:-}" in
@@ -256,8 +257,8 @@ case "${1:-}" in
         ;;
 esac
 GPUSCRIPT
-        chmod +x "$HOME/gpu"
-        echo "${OK} ~/gpu created directly"
+        chmod +x "$HOME/.local/bin/gpu"
+        echo "${OK} ~/.local/bin/gpu created directly"
     fi
 fi
 
@@ -281,7 +282,7 @@ check() {
 }
 
 check "vgl script exists and executable"    "test -x '$HOME/vgl'"
-check "gpu wrapper exists and executable"   "test -x '$HOME/gpu'"
+check "gpu wrapper exists and executable"   "test -x '$HOME/.local/bin/gpu'"
 check "virgl_test_server binary"            "which virgl_test_server"
 check "ANGLE vulkan backend"                "test -d '$PREFIX/opt/angle-android/vulkan'"
 check "ANGLE GL backend"                    "test -d '$PREFIX/opt/angle-android/gl'"
@@ -306,7 +307,7 @@ echo ""
 echo "Next steps:"
 echo ""
 echo "  1. Start the GPU server:"
-echo "     ~/gpu"
+echo "     ~/.local/bin/gpu"
 echo ""
 echo "  2. In another Termux session, start X11:"
 echo "     termux-x11 :1 -ac -dpi 192 &"
@@ -314,12 +315,12 @@ echo "     sleep 3"
 echo "     am start --user 0 -n com.termux.x11/.MainActivity"
 echo ""
 echo "  3. Run a test:"
-echo "     DISPLAY=:1 ~/gpu glxgears -info"
+echo "     DISPLAY=:1 ~/.local/bin/gpu glxgears -info"
 echo ""
 echo "  4. To stop:"
-echo "     ~/gpu q"
+echo "     ~/.local/bin/gpu q"
 echo ""
 echo "For Firefox with WebGL:"
-echo "   DISPLAY=:1 ~/gpu firefox"
+echo "   DISPLAY=:1 ~/.local/bin/gpu firefox"
 echo "   (Set gfx.webrender.all = false in about:config)"
 echo ""
