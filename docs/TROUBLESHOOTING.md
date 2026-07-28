@@ -119,6 +119,32 @@ xfce4-panel -r
 For WebGL, also set in `about:config`: `webgl.force-enabled = true` and
 `gfx.webrender.all = false`.
 
+## Alacritty shader error: `"output location 0 >= GL_MAX_DUAL_SOURCE_DRAW_BUFFERS"`
+
+```
+Error: Render(Shader(Link("error: output location 0 >= GL_MAX_DUAL_SOURCE_DRAW_BUFFERS with index 1 for alphaMask\n")))
+```
+
+Alacritty usa dual-source blending, una feature moderna de OpenGL que virgl
+no traduce correctamente. El resultado es pantalla negra o error al arrancar.
+
+**Solución:** desactivar `draw_multithreaded` en el config de Alacritty:
+
+```bash
+mkdir -p ~/.config/alacritty
+cp config/alacritty.toml ~/.config/alacritty/
+```
+
+O manualmente, crear `~/.config/alacritty/alacritty.toml` con:
+
+```toml
+[renderer]
+draw_multithreaded = false
+```
+
+**Alternativa:** usá otro terminal (xfce4-terminal, lxterminal, foot) que no
+dependa de dual-source blending.
+
 ## Harmless log noise (safe to ignore)
 
 - `Xlib: extension "DPMS" missing` - Termux:X11 has no DPMS.

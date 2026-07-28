@@ -1,0 +1,5 @@
+# Alacritty config for virgl/ANGLE compatibility
+# Fixes: "error: output location 0 >= GL_MAX_DUAL_SOURCE_DRAW_BUFFERS"
+
+[renderer]
+draw_multithreaded = false

@@ -422,3 +422,5 @@ Key things to check:
 - **No `-legacy-drawing`** flag on `termux-x11`
 - **`$DISPLAY=:1`** is set when running the app
 - **Socket reachable** — `ls -la $PREFIX/tmp/.virgl_test` should exist when the server is running
+- **Alacritty freeze/crash** — necesita `draw_multithreaded = false` en
+  `~/.config/alacritty/alacritty.toml` (ver TROUBLESHOOTING.md)
