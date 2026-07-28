@@ -265,9 +265,43 @@ fi
 echo ""
 
 # =========================================================================
-# STEP 4: Verify installation
+# STEP 4: Install firefox-gpu wrapper
 # =========================================================================
-echo "${STEP} Step 4/5: Verifying installation..."
+echo "${STEP} Step 4/6: Installing firefox-gpu wrapper..."
+
+if [ -f "$HOME/.local/bin/firefox-gpu" ]; then
+    echo "   ${OK} ~/.local/bin/firefox-gpu already installed"
+else
+    if [ -f "$REPO_DIR/config/firefox-gpu" ]; then
+        cp "$REPO_DIR/config/firefox-gpu" "$HOME/.local/bin/firefox-gpu" && chmod +x "$HOME/.local/bin/firefox-gpu"
+        echo "${OK} ~/.local/bin/firefox-gpu installed"
+    else
+        cat > "$HOME/.local/bin/firefox-gpu" << 'FXWRAP'
+#!/data/data/com.termux/files/usr/bin/bash
+# Firefox GPU wrapper - from termux-mali-gpu-acceleration
+exec env -u LIBGL_ALWAYS_SOFTWARE \
+  MOZ_X11_EGL=1 \
+  GALLIUM_DRIVER=virpipe \
+  MESA_GL_VERSION_OVERRIDE=4.1COMPAT \
+  MESA_GLSL_VERSION_OVERRIDE=410 \
+  firefox "$@"
+FXWRAP
+        chmod +x "$HOME/.local/bin/firefox-gpu"
+        echo "${OK} ~/.local/bin/firefox-gpu created directly"
+    fi
+fi
+
+# Also create a symlink so `gpu firefox` works cleanly
+if [ ! -f "$HOME/.local/bin/firefox-gpu" ]; then
+    ln -sf "$HOME/.local/bin/gpu" "$HOME/.local/bin/firefox-gpu" 2>/dev/null || true
+fi
+
+echo ""
+
+# =========================================================================
+# STEP 5: Verify installation
+# =========================================================================
+echo "${STEP} Step 5/6: Verifying installation..."
 ALL_OK=true
 
 check() {
@@ -283,6 +317,7 @@ check() {
 
 check "vgl script exists and executable"    "test -x '$HOME/vgl'"
 check "gpu wrapper exists and executable"   "test -x '$HOME/.local/bin/gpu'"
+check "firefox-gpu exists and executable"   "test -x '$HOME/.local/bin/firefox-gpu'"
 check "virgl_test_server binary"            "which virgl_test_server"
 check "ANGLE vulkan backend"                "test -d '$PREFIX/opt/angle-android/vulkan'"
 check "ANGLE GL backend"                    "test -d '$PREFIX/opt/angle-android/gl'"
@@ -294,7 +329,7 @@ echo ""
 # =========================================================================
 # STEP 5: Summary
 # =========================================================================
-echo "${STEP} Step 5/5: Setup complete!"
+echo "${STEP} Step 6/6: Setup complete!"
 echo ""
 echo "=============================="
 if [ "$ALL_OK" = true ]; then
