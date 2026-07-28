@@ -61,6 +61,8 @@ fi
 
 WORKDIR=$(mktemp -d)
 trap "rm -rf '$WORKDIR'" EXIT
+# Also clean temp dirs inside WORKDIR if script is interrupted
+trap "rm -rf '$WORKDIR' '$TMPDIR/deb2pkg-*' 2>/dev/null" EXIT
 
 echo "==> Extracting: $DEB_FILE"
 
@@ -186,6 +188,9 @@ fi
 echo ""
 echo "✅ Done: $(basename "$OUTPUT_FILE")"
 echo "   Install with: pacman -U $(basename "$OUTPUT_FILE")"
+
+# Clean up temp files immediately (don't wait for trap on success)
+rm -rf "$WORKDIR" 2>/dev/null
 
 # Output the filename for scripting
 echo "$OUTPUT_FILE"
