@@ -1,5 +1,6 @@
 # Alacritty config for virgl/ANGLE compatibility
 # Fixes: "error: output location 0 >= GL_MAX_DUAL_SOURCE_DRAW_BUFFERS"
+# Uses GLES2 pure renderer (no dual-source blending)
 
-[renderer]
-draw_multithreaded = false
+[debug]
+renderer = "Gles2Pure"

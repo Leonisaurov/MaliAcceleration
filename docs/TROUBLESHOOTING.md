@@ -125,10 +125,14 @@ For WebGL, also set in `about:config`: `webgl.force-enabled = true` and
 Error: Render(Shader(Link("error: output location 0 >= GL_MAX_DUAL_SOURCE_DRAW_BUFFERS with index 1 for alphaMask\n")))
 ```
 
-Alacritty usa dual-source blending, una feature moderna de OpenGL que virgl
-no traduce correctamente. El resultado es pantalla negra o error al arrancar.
+Alacritty usa `GL_EXT_blend_func_extended` (dual-source blending), una
+extensión que virgl/ANGLE reporta como disponible pero con
+`GL_MAX_DUAL_SOURCE_DRAW_BUFFERS = 0`, causando que el shader falle al
+linkear.
 
-**Solución:** desactivar `draw_multithreaded` en el config de Alacritty:
+En versiones modernas de Alacritty (>= 0.13), la opción `draw_multithreaded`
+ya no existe. La solución correcta es usar el renderer `Gles2Pure`, que
+deshabilita dual-source blending:
 
 ```bash
 mkdir -p ~/.config/alacritty
@@ -138,12 +142,18 @@ cp config/alacritty.toml ~/.config/alacritty/
 O manualmente, crear `~/.config/alacritty/alacritty.toml` con:
 
 ```toml
-[renderer]
-draw_multithreaded = false
+[debug]
+renderer = "Gles2Pure"
 ```
 
-**Alternativa:** usá otro terminal (xfce4-terminal, lxterminal, foot) que no
-dependa de dual-source blending.
+**Alternativa:** forzar la variable de entorno de Mesa:
+
+```bash
+MESA_EXTENSION_OVERRIDE="-GL_EXT_blend_func_extended" alacritty
+```
+
+**O simplemente usá otro terminal** (xfce4-terminal, lxterminal, foot) que
+no dependa de dual-source blending.
 
 ## Harmless log noise (safe to ignore)
 
