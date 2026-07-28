@@ -422,8 +422,9 @@ EOF
     fi
     
     # Verify the JSON is valid
-    if ! head -1 "$PKGDIR/data/data/com.termux/files/usr/share/vulkan/icd.d/mali.json" | grep -q "file_format_version"; then
+    if ! grep -q "file_format_version" "$PKGDIR/data/data/com.termux/files/usr/share/vulkan/icd.d/mali.json" 2>/dev/null; then
         echo "${STATUS_ERR} Failed to create valid ICD JSON" >&2
+        cat "$PKGDIR/data/data/com.termux/files/usr/share/vulkan/icd.d/mali.json" >&2
         return 1
     fi
     
