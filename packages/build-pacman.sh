@@ -27,7 +27,9 @@
 #    ./build-pacman.sh force        # rebuild everything from scratch
 # =============================================================================
 
-set -e
+# Note: no 'set -e' — we use explicit error handling (||, if checks)
+# set -e causes silent exits in Termux when /proc/meminfo or other
+# system files behave unexpectedly.
 
 # --- Config ------------------------------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -43,7 +45,8 @@ PKG_DIR_BASE="$BUILD_BASE/pkg"
 BASE_URL="https://github.com/ar37-rs/virgl-angle/releases/download/latest"
 
 # OOM-safe: detect RAM and set ninja jobs
-TOTAL_MEM_KB=$(grep MemTotal /proc/meminfo 2>/dev/null | awk '{print $2}' || echo "0")
+TOTAL_MEM_KB=$(grep MemTotal /proc/meminfo 2>/dev/null | awk '{print $2}')
+TOTAL_MEM_KB="${TOTAL_MEM_KB:-0}"
 TOTAL_MEM_MB=$((TOTAL_MEM_KB / 1024))
 
 if [ "$TOTAL_MEM_MB" -lt 1024 ]; then
@@ -332,15 +335,23 @@ build_angle() {
     download "$URL" "$OUTPUT_DIR/$DEB_FILE" "$DEB_FILE" || return 1
     
     # Convert using deb2pkg.sh
-    "$SCRIPT_DIR/deb2pkg.sh" "$OUTPUT_DIR/$DEB_FILE" || return 1
+    if [ ! -x "$SCRIPT_DIR/deb2pkg.sh" ]; then
+        echo "${STATUS_ERR} $SCRIPT_DIR/deb2pkg.sh not found or not executable" >&2
+        return 1
+    fi
+    "$SCRIPT_DIR/deb2pkg.sh" "$OUTPUT_DIR/$DEB_FILE" || {
+        echo "${STATUS_ERR} deb2pkg.sh failed to convert $DEB_FILE" >&2
+        return 1
+    }
     
     # Clean up .deb to save space (package is ~15MB)
     echo "${STATUS_INFO} Cleaning up..."
     rm -f "$OUTPUT_DIR/$DEB_FILE" 2>/dev/null || true
     
     # Find the resulting .pkg.tar.xz
-    local result=$(ls "$OUTPUT_DIR"/angle-android-*.pkg.tar.xz 2>/dev/null | head -1)
-    if [ -n "$result" ]; then
+    local result
+    result=$(ls "$OUTPUT_DIR"/angle-android-*.pkg.tar.xz 2>/dev/null | head -1) || true
+    if [ -n "$result" ] && [ -f "$result" ]; then
         echo "${STATUS_OK} Package: $(basename "$result")"
     fi
 }
@@ -498,20 +509,20 @@ main() {
         all)
             check_deps
             build_virglrenderer || echo "${STATUS_WARN} virglrenderer build had issues"
-            build_angle
-            build_icd
+            build_angle || echo "${STATUS_WARN} angle-android build had issues"
+            build_icd || echo "${STATUS_WARN} mesa-vulkan-icd-wrapper build had issues"
             ;;
         virgl|virglrenderer)
             check_deps
-            build_virglrenderer
+            build_virglrenderer || echo "${STATUS_WARN} virglrenderer build had issues"
             ;;
         angle|angle-android)
             check_deps
-            build_angle
+            build_angle || echo "${STATUS_WARN} angle-android build had issues"
             ;;
         icd|vulkan|wrapper)
             check_deps
-            build_icd
+            build_icd || echo "${STATUS_WARN} mesa-vulkan-icd-wrapper build had issues"
             ;;
         clean)
             clean
