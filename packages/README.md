@@ -1,15 +1,20 @@
 # Pacman packages for Mali GPU acceleration
 
-This directory contains tooling to build native Termux pacman packages
+This directory provides tooling to build native Termux pacman packages
 (.pkg.tar.xz) for the Mali GPU acceleration stack.
 
-The packages are built from pre-compiled `.deb` binaries published by
-[ar37-rs/virgl-angle](https://github.com/ar37-rs/virgl-angle) releases.
+## Build strategies
+
+| Package | Strategy | How |
+|---------|----------|-----|
+| `virglrenderer` | **From source** | Downloads source from [freedesktop.org](https://gitlab.freedesktop.org/virgl/virglrenderer), compiles with meson+ninja |
+| `angle-android` | Prebuilt binary | ANGLE requires Google's depot_tools + Chromium-scale build — impractical for on-device builds. Uses binaries from upstream releases |
+| `mesa-vulkan-icd-wrapper` | **From source** | Auto-detects Mali's Vulkan driver on the device; generates ICD JSON configuration |
 
 ## Quick start
 
 ```bash
-# Build all packages (downloads .deb from upstream, converts to .pkg.tar.xz)
+# Build all packages
 cd packages
 ./build-pacman.sh
 
@@ -17,66 +22,67 @@ cd packages
 pacman -U *.pkg.tar.xz
 ```
 
-## Available packages
+## Manual build per package
 
-| Package | Contents | Source |
-|---|---|---|
-| `virglrenderer` | `virgl_test_server` binary (modified for ANGLE) | ar37-rs/virgl-angle |
-| `angle-android` | ANGLE libraries (Vulkan/GL backends) | ar37-rs/virgl-angle |
-| `mesa-vulkan-icd-wrapper` | Mali Vulkan ICD wrapper (required fix) | ar37-rs/virgl-angle |
+```bash
+# Build only virglrenderer from source
+./build-pacman.sh virgl
+
+# Build only angle-android (prebuilt)
+./build-pacman.sh angle
+
+# Build only mesa-vulkan-icd-wrapper (from source)
+./build-pacman.sh icd
+
+# Clean all build artifacts
+./build-pacman.sh clean
+```
 
 ## Scripts
 
 | Script | Purpose |
 |---|---|
-| `build-pacman.sh` | Master build script: download + convert all packages |
-| `deb2pkg.sh` | Core converter: any .deb → .pkg.tar.xz |
-| `repo-add.sh` | Create a local pacman repo from .pkg.tar.xz files |
+| `build-pacman.sh` | Master build script: builds all packages with optimal strategy |
+| `deb2pkg.sh` | Local utility: convert any .deb → .pkg.tar.xz (for local .deb files) |
+| `repo-add.sh` | Create a local pacman repository from built .pkg.tar.xz files |
 
-## Manual conversion
+## Build dependencies
 
+Required for source builds:
 ```bash
-# Convert any single .deb to .pkg.tar.xz
-./deb2pkg.sh angle-android_2.1.2-latest.deb
-# Output: angle-android-2.1.2-1-aarch64.pkg.tar.xz
-
-# Install with pacman
-pacman -U angle-android-2.1.2-1-aarch64.pkg.tar.xz
+pacman -S meson ninja pkg-config
+pacman -S libdrm libepoxy libglvnd libx11 mesa
 ```
 
-## Local pacman repo
-
-If you want to use `pacman -S` instead of `pacman -U`:
-
+Required for prebuilt binary conversion:
 ```bash
-./build-pacman.sh
-./repo-add.sh
-```
-
-Then add to `/data/data/com.termux/files/usr/etc/pacman.conf`:
-
-```ini
-[mali-gpu]
-SigLevel = Optional TrustAll
-Server = file:///data/data/com.termux/files/home/termux-mali-gpu-acceleration/packages
-```
-
-Then:
-
-```bash
-pacman -Sy
-pacman -S virglrenderer angle-android mesa-vulkan-icd-wrapper
+pacman -S dpkg
 ```
 
 ## PKGBUILD files
 
-The `PKGBUILD.*` files are provided as reference for those who want to
-integrate with `makepkg`. They download the upstream `.deb` and extract it.
-For day-to-day use, `deb2pkg.sh` is simpler.
+The `PKGBUILD.*` files are provided for integration with `makepkg` on systems
+that support it. In Termux, use `build-pacman.sh` instead.
 
-## Notes
+## About ANGLE source builds
 
-- `dpkg` and `pacman` coexist safely in Termux (separate databases).
-- These packages are binary repackages of the upstream .deb files, not
-  builds from source.
-- The version numbers match the upstream ar37-rs/virgl-angle releases.
+[ANGLE](https://chromium.googlesource.com/angle/angle) (Almost Native Graphics
+Layer Engine) is a large C++ project that shares infrastructure with Chromium.
+Building it requires:
+
+- Google's [depot_tools](https://chromium.googlesource.com/chromium/tools/depot_tools/)
+- GN meta-build system
+- Android NDK
+- Several gigabytes of source code
+- Multiple compilations (one per backend: gl, vulkan, vulkan-null)
+
+This is not practical to do on-device in Termux. Termux's own
+[angle-android package](https://github.com/termux/termux-packages/tree/master/packages/angle-android)
+also uses pre-built binaries.
+
+## About mesa-vulkan-icd-wrapper
+
+This package creates a Vulkan ICD JSON file that tells Termux's
+`vulkan-loader-generic` where to find Mali's system Vulkan driver. It is
+built from source (not a .deb conversion) and auto-detects the Mali driver
+at build time when possible, or at install time via a post-install script.

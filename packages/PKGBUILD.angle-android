@@ -1,19 +1,23 @@
-# PKGBUILD for angle-android (binary repackage from upstream .deb)
-# This is a reference PKGBUILD. For convenience, use deb2pkg.sh or build-pacman.sh
-# instead, which directly convert the pre-built .deb packages.
+# PKGBUILD for angle-android
 #
-# Maintainer: ar37-rs (upstream), packaged for pacman by termux-mali-gpu-acceleration
-# Contributor: Theguilherm3
+# NOTE: Building ANGLE from source requires Google's depot_tools, GN, Ninja,
+# the Android NDK, and a Chromium-scale build infrastructure. This is not
+# practical to do on-device in Termux.
 #
-# If you want to build from source instead of repackaging the .deb,
-# see: https://github.com/ar37-rs/virgl-angle
+# This PKGBUILD uses a pre-built .deb from ar37-rs/virgl-angle releases,
+# which contains the official Google ANGLE libraries compiled for Android.
+#
+# For those who want to build from source, Google's ANGLE source is at:
+#   https://chromium.googlesource.com/angle/angle
+# And the build process (for desktop/CI) is documented at:
+#   https://chromium.googlesource.com/angle/angle/+/main/doc/DevSetup.md
 
 pkgname=angle-android
 pkgver=2.1.2
 pkgrel=1
-pkgdesc="ANGLE (Almost Native Graphics Layer Engine) for Android - Vulkan backend. Pre-built binaries from ar37-rs/virgl-angle."
+pkgdesc="ANGLE (Almost Native Graphics Layer Engine) for Android. Pre-built binaries repackaged for Termux pacman."
 arch=('aarch64')
-url="https://github.com/ar37-rs/virgl-angle"
+url="https://github.com/google/angle"
 license=('Apache')
 depends=('vulkan-loader-generic')
 options=('!strip' '!buildflags')
@@ -22,8 +26,9 @@ sha256sums=('SKIP')
 
 package() {
     cd "$srcdir"
-    # Extract the .deb manually
+    # Extract the .deb into package dir
     ar p angle-android_2.1.2-latest.deb data.tar.xz | tar -xJ -C "$pkgdir"
+
     # Fix permissions
     find "$pkgdir" -type d -exec chmod 755 {} \;
     find "$pkgdir" -type f -exec chmod 644 {} \;

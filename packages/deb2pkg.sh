@@ -1,6 +1,10 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # =============================================================================
 #  deb2pkg.sh  —  Convert a .deb package to .pkg.tar.xz for Termux pacman
+#
+#  NOTE: This is a LOCAL CONVENIENCE TOOL for converting pre-existing .deb
+#  files. For proper source-based builds, use the PKGBUILD.* files with
+#  makepkg, or use build-pacman.sh which prefers source builds when possible.
 # =============================================================================
 #  Usage:  ./deb2pkg.sh <package.deb>
 #
