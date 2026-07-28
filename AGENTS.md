@@ -101,6 +101,9 @@ The `~/vgl` toolkit from ar37-rs/virgl-angle is **primarily a Termux-native tool
 - **Usage pattern**: `~/vgl angle=vulkan` to start server, then `DISPLAY=:1 GALLIUM_DRIVER=virpipe glxgears -info` to run apps
 - **The `vgl` script** already sets `GALLIUM_DRIVER=virpipe` internally — you can also use `DISPLAY=:1 ~/vgl glxgears -info`
 - **All caveats apply** — same limitations, same ICD fix, same log noise, same `-legacy-drawing` prohibition
+- **Fallback if ANGLE fails**: `~/vgl use-android` runs virgl against the system's native GLES driver instead of ANGLE → Vulkan. Try this if `angle=vulkan` doesn't work on your GPU.
+- **Missing symlinks break ANGLE**: If you see ANGLE init errors, check that `libEGL.so.1`, `libGLESv1_CM.so.1`, `libGLESv2.so.2` exist under `$PREFIX/opt/angle-android/vulkan/`. The `vgl` script creates these symlinks automatically, but a broken install may miss them.
+- **`virgl_test_server` without ANGLE → LLVMPIPE**: Running the plain `virgl_test_server` (no ANGLE backend) silently falls back to software rendering. Always use `~/vgl angle=vulkan` or `~/vgl use-android`.
 
 See `docs/TERMUX-ONLY.md` for the complete step-by-step guide.
 

@@ -111,6 +111,11 @@ using virgl angle=vulkan.
 (OpenGL 4.1COMPAT profile)
 ```
 
+> **Note:** The `vgl` script also creates symlinks for ANGLE libraries on first
+> run (`libEGL.so.1`, `libGLESv1_CM.so.1`, `libGLESv2.so.2`) inside the ANGLE
+> backend directory. If you see ANGLE init errors, check that these symlinks
+> exist under `$PREFIX/opt/angle-android/vulkan/`.
+
 Keep this terminal open — the server must stay running.
 
 ### 2. Launch Termux:X11
@@ -141,6 +146,7 @@ The `~/vgl` wrapper sets all the required environment variables:
 - `MESA_GL_VERSION_OVERRIDE=4.1COMPAT` / `MESA_GLSL_VERSION_OVERRIDE=410` —
   expose a modern GL version to apps
 - `MESA_BACK_BUFFER=pixmap` — compatible back-buffer mode for Termux:X11
+- `MESA_NO_ERROR=1` — performance optimization, skips GL error checking
 
 #### Without the `~/vgl` wrapper
 
@@ -241,9 +247,12 @@ persistently.
 | `~/vgl angle=vulkan` | `~/.vgl-angle-vulkan` | ANGLE → Vulkan (recommended for Mali) |
 | `~/vgl angle=gl` | `~/.vgl-angle-gl` | ANGLE → OpenGL (broken on Mali, for testing) |
 | `~/vgl angle=vulkan-null` | *(neither sentinel)* | Vulkan with null surface |
+| `~/vgl use-android` | `~/.vgl-android` | Hardware-native virgl (fallback for GPUs where ANGLE doesn't work) |
 
-Use `angle=vulkan` for Mali. The other modes exist for debugging or for GPUs
-with working OpenGL paths.
+Use `angle=vulkan` for Mali. `use-android` is a fallback for GPUs where ANGLE's
+Vulkan backend doesn't work — it runs virgl against the system's native GLES
+driver instead. The other ANGLE modes exist for debugging or GPUs with working
+OpenGL paths.
 
 ### GL version override
 
@@ -270,6 +279,8 @@ Use a lower version if apps report missing extensions or crash.
 |---|---|
 | `~/vgl q` | Kill the running virgl server |
 | `~/vgl -Q ...` | Verbose/debug mode (`set -x`) for any command |
+| `~/vgl update-angle` | Download and install the latest ANGLE build (Android 10+) |
+| `~/vgl update-virgl` | Download and install the latest virglrenderer build (recommended for stability, Android 10+) |
 
 > Changing backends (`angle=vulkan` → `angle=gl`, etc.) automatically kills the
 > running server and restarts it with the new mode.
