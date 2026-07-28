@@ -1,0 +1,24 @@
+# PKGBUILD for virglrenderer (modified for ANGLE, binary repackage)
+# Pre-built .deb from ar37-rs/virgl-angle releases.
+#
+# For convenience, use deb2pkg.sh or build-pacman.sh instead.
+
+pkgname=virglrenderer
+pkgver=1.1.1
+pkgrel=1
+pkgdesc="Modified virglrenderer for ANGLE → Vulkan on Mali GPUs. Pre-built from ar37-rs/virgl-angle."
+arch=('aarch64')
+url="https://github.com/ar37-rs/virgl-angle"
+license=('MIT')
+depends=('angle-android')
+options=('!strip' '!buildflags')
+source=("https://github.com/ar37-rs/virgl-angle/releases/download/latest/virglrenderer_1.1.1-latest_aarch64.deb")
+sha256sums=('SKIP')
+
+package() {
+    cd "$srcdir"
+    ar p virglrenderer_1.1.1-latest_aarch64.deb data.tar.xz | tar -xJ -C "$pkgdir"
+    find "$pkgdir" -type d -exec chmod 755 {} \;
+    find "$pkgdir" -type f -exec chmod 644 {} \;
+    find "$pkgdir" -type f \( -name '*.so' -o -name 'virgl_test_server*' \) -exec chmod 755 {} \;
+}

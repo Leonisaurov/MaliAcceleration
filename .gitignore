@@ -4,3 +4,6 @@
 Thumbs.db
 *.swp
 *~
+# Generated packages
+*.pkg.tar.xz
+packages/*.deb

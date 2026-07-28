@@ -1,6 +1,6 @@
 # AGENTS.md — termux-mali-gpu-acceleration
 
-This repo is a **documentation + shell-scripts** project for getting hardware-accelerated GL/WebGL (via virgl -> ANGLE -> Vulkan -> Mali) working on unrooted Mali-GPU Android devices, inside either Termux directly or Termux + proot. There is nothing to build, compile, or test. See `docs/TERMUX-ONLY.md` for the Termux-native (no proot) variant.
+This repo combines the [ar37-rs/virgl-angle](virgl-angle/) upstream toolkit with documentation and scripts for getting hardware-accelerated GL/WebGL (via virgl -> ANGLE -> Vulkan -> Mali) working on unrooted Mali-GPU Android devices, inside either Termux directly or Termux + proot. The `packages/` directory provides tooling to build native Termux pacman packages (.pkg.tar.xz) from upstream .deb releases. See `docs/TERMUX-ONLY.md` for the Termux-native (no proot) variant.
 
 ## No build system — this is not a code project
 
@@ -19,9 +19,19 @@ docs/
   TROUBLESHOOTING.md     Known errors and their fixes
   TERMUX-ONLY.md       Guide for using acceleration directly in Termux without proot
   screenshots/           Proof-of-concept images
+packages/
+  build-pacman.sh   Script to build .pkg.tar.xz from upstream .deb releases
+  deb2pkg.sh        Convert any .deb to .pkg.tar.xz for Termux pacman
+  repo-add.sh       Create a local pacman repo from built packages
+  PKGBUILD.*        Reference PKGBUILD files for each package
+  README.md         How to use the pacman packages
 scripts/
   start-ubuntu.sh   Termux-host launcher (editing required)
   start-xfce.sh     proot-guest desktop launcher (drop-session-manager pattern)
+virgl-angle/
+  vgl               The vgl toolkit (cloned from ar37-rs/virgl-angle)
+  README.md         Original upstream README
+  LICENSE           Original upstream license
 ```
 
 ## Critical gotchas an agent WILL miss

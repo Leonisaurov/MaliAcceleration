@@ -1,0 +1,28 @@
+# PKGBUILD for mesa-vulkan-icd-wrapper (Mali Vulkan ICD wrapper)
+# Pre-built .deb from ar37-rs/virgl-angle releases.
+#
+# This package provides the Vulkan ICD JSON that allows ANGLE to
+# find Mali's Vulkan driver. Without it, ANGLE silently falls back
+# to Mali's broken OpenGL path (texImage2D 0x0502).
+#
+# For convenience, use deb2pkg.sh or build-pacman.sh instead.
+
+pkgname=mesa-vulkan-icd-wrapper
+pkgver=25.0.0
+pkgrel=1
+pkgdesc="Mesa Vulkan ICD wrapper for Mali GPUs. Enables ANGLE to find Mali's Vulkan driver."
+arch=('aarch64')
+url="https://github.com/ar37-rs/virgl-angle"
+license=('MIT')
+depends=('vulkan-loader-generic')
+options=('!strip' '!buildflags')
+source=("https://github.com/ar37-rs/virgl-angle/releases/download/latest/mesa-vulkan-icd-wrapper_25.0.0-1_aarch64.deb")
+sha256sums=('SKIP')
+
+package() {
+    cd "$srcdir"
+    ar p mesa-vulkan-icd-wrapper_25.0.0-1_aarch64.deb data.tar.xz | tar -xJ -C "$pkgdir"
+    find "$pkgdir" -type d -exec chmod 755 {} \;
+    find "$pkgdir" -type f -exec chmod 644 {} \;
+    find "$pkgdir" -type f -name '*.so' -exec chmod 755 {} \;
+}

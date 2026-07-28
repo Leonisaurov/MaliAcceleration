@@ -194,6 +194,26 @@ WebGL render fine.)
 
 ---
 
+## Repository structure
+
+This repo includes the full [ar37-rs/virgl-angle](virgl-angle/) upstream
+toolkit as a git clone under `virgl-angle/`. The `vgl` script there is the
+original — our documentation references `~/vgl` which you download separately,
+but the source is here for reference.
+
+The `packages/` directory provides tooling to build native Termux **pacman**
+packages (.pkg.tar.xz) from the upstream .deb releases. See
+[packages/README.md](packages/README.md) for details.
+
+To build pacman packages:
+```bash
+cd packages
+./build-pacman.sh       # downloads upstream .deb → converts to .pkg.tar.xz
+pacman -U *.pkg.tar.xz  # install them
+```
+
+---
+
 ## Credits
 
 - [**ar37-rs/virgl-angle**](https://github.com/ar37-rs/virgl-angle) - the `vgl`

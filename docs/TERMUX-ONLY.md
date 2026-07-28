@@ -119,14 +119,20 @@ wget https://github.com/ar37-rs/virgl-angle/releases/download/latest/mesa-vulkan
 ```
 
 > **Note:** The `vgl` script's `~/vgl i` command uses `pkg` internally and will
-> not work with pacman. Install everything manually as shown above, then ignore
-> `~/vgl i`. All other `~/vgl` commands (`angle=vulkan`, `q`, launching apps,
-> etc.) are package-manager-agnostic.
+> not work with pacman. Install everything manually as shown above, or use
+> `./packages/build-pacman.sh` to build native .pkg.tar.xz packages. All other
+> `~/vgl` commands (`angle=vulkan`, `q`, launching apps, etc.) are
+> package-manager-agnostic.
 
 > **About dpkg + pacman coexistence:** `dpkg` and `pacman` have separate
 > databases in Termux and can coexist safely. Use pacman for system packages and
 > `dpkg -i` only for these three `.deb` files from upstream. Do not mix both
 > package managers for the same package.
+
+> **Even easier: use `packages/build-pacman.sh`** — this repo's
+> [`packages/`](../packages/README.md) directory contains a build script that
+> automates downloading the upstream .deb files and converting them to .pkg.tar.xz
+> for pacman. Run `./packages/build-pacman.sh` then `pacman -U packages/*.pkg.tar.xz`.
 
 ---
 

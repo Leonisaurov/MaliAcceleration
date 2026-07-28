@@ -1,0 +1,31 @@
+# PKGBUILD for angle-android (binary repackage from upstream .deb)
+# This is a reference PKGBUILD. For convenience, use deb2pkg.sh or build-pacman.sh
+# instead, which directly convert the pre-built .deb packages.
+#
+# Maintainer: ar37-rs (upstream), packaged for pacman by termux-mali-gpu-acceleration
+# Contributor: Theguilherm3
+#
+# If you want to build from source instead of repackaging the .deb,
+# see: https://github.com/ar37-rs/virgl-angle
+
+pkgname=angle-android
+pkgver=2.1.2
+pkgrel=1
+pkgdesc="ANGLE (Almost Native Graphics Layer Engine) for Android - Vulkan backend. Pre-built binaries from ar37-rs/virgl-angle."
+arch=('aarch64')
+url="https://github.com/ar37-rs/virgl-angle"
+license=('Apache')
+depends=('vulkan-loader-generic')
+options=('!strip' '!buildflags')
+source=("https://github.com/ar37-rs/virgl-angle/releases/download/latest/angle-android_2.1.2-latest.deb")
+sha256sums=('SKIP')
+
+package() {
+    cd "$srcdir"
+    # Extract the .deb manually
+    ar p angle-android_2.1.2-latest.deb data.tar.xz | tar -xJ -C "$pkgdir"
+    # Fix permissions
+    find "$pkgdir" -type d -exec chmod 755 {} \;
+    find "$pkgdir" -type f -exec chmod 644 {} \;
+    find "$pkgdir" -type f -name '*.so' -exec chmod 755 {} \;
+}
