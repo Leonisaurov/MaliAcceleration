@@ -251,10 +251,17 @@ build_virglrenderer() {
     # Install to package dir
     local PKGDIR="$PKG_DIR_BASE/virglrenderer"
     rm -rf "$PKGDIR"
-    DESTDIR="$PKGDIR" ninja -C build install 2>&1 | tail -3 || {
+    mkdir -p "$PKGDIR"
+    DESTDIR="$PKGDIR" ninja -C build install 2>&1 | tail -5 || {
         echo "${STATUS_ERR} Install failed" >&2
         return 1
     }
+    
+    # Verify installation produced files
+    if [ -z "$(ls -A "$PKGDIR" 2>/dev/null)" ]; then
+        echo "${STATUS_ERR} DESTDIR install produced no files in $PKGDIR" >&2
+        return 1
+    fi
     
     # Strip debug symbols (reduce package size)
     echo "${STATUS_INFO} Stripping binaries..."
@@ -282,7 +289,10 @@ depend = mesa
 EOF
     
     # Build the .pkg.tar.xz (xz -6 for good compression without maxing CPU)
-    cd "$PKGDIR"
+    cd "$PKGDIR" || {
+        echo "${STATUS_ERR} Failed to cd to package dir: $PKGDIR" >&2
+        return 1
+    }
     echo "${STATUS_BUILD} Creating package (this may take a moment)..."
     tar -cf - .PKGINFO $(find . -not -name '.PKGINFO' -not -name '.MTREE' | sed 's|^./||') | \
         xz -6 -T1 -c > "$OUTPUT_FILE" || {

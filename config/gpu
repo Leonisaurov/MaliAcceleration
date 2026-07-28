@@ -1,0 +1,82 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# =============================================================================
+#  gpu  —  GPU acceleration wrapper for Mali in Termux
+# =============================================================================
+#  Automatically uses ANGLE → Vulkan backend.
+#
+#  Usage:
+#    gpu                      Start the virgl server (ANGLE → Vulkan)
+#    gpu <app> [args]         Run an app with GPU acceleration
+#                               (auto-starts server if needed)
+#    gpu q                    Kill the virgl server
+#    gpu --help               Show this help
+#
+#  Examples:
+#    gpu                       → starts server with ~/vgl angle=vulkan
+#    gpu glxgears -info        → runs glxgears accelerated
+#    DISPLAY=:1 gpu glmark2    → runs glmark2 on display :1
+#    gpu q                     → kills the server
+#
+#  This is a convenience wrapper around the vgl toolkit from:
+#    https://github.com/ar37-rs/virgl-angle
+#
+#  Requires: ~/vgl installed, mesa-vulkan-icd-wrapper, angle-android,
+#            virglrenderer packages.
+# =============================================================================
+
+VGL="${HOME}/vgl"
+
+# --- Help --------------------------------------------------------------
+if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
+    sed -n '/^#  Usage/,/^$/p' "$0" | sed 's/^#  //'
+    echo ""
+    echo "Advanced: any 'vgl' command also works:"
+    echo "  gpu use-android              Fallback (no ANGLE)"
+    echo "  gpu angle=gl                 ANGLE → OpenGL (debug)"
+    echo "  gpu 2.1COMPAT                Force OpenGL 2.1"
+    echo "  gpu q                        Kill server"
+    echo "  gpu update-angle             Update ANGLE build"
+    echo ""
+    exit 0
+fi
+
+# --- Check vgl ---------------------------------------------------------
+if [ ! -x "$VGL" ]; then
+    echo "ERROR: ~/vgl not found." >&2
+    echo "  Install: cd && wget https://github.com/ar37-rs/virgl-angle/raw/refs/heads/main/vgl && chmod +x ~/vgl" >&2
+    exit 1
+fi
+
+# --- Check if server is running ----------------------------------------
+server_running() {
+    pgrep -f "virgl_test_server" >/dev/null 2>&1
+}
+
+# --- Kill server -------------------------------------------------------
+if [ "${1:-}" = "q" ]; then
+    exec "$VGL" q
+fi
+
+# --- vgl internal commands (pass through) ------------------------------
+case "${1:-}" in
+    angle=*|use-*|config=*|cfg=*|update-*|2.1COMPAT|3.2COMPAT|3.3COMPAT|4.1COMPAT|4.3COMPAT)
+        exec "$VGL" "$@"
+        ;;
+esac
+
+# --- No args: start server ---------------------------------------------
+if [ $# -eq 0 ]; then
+    echo "Starting virgl server (ANGLE → Vulkan)..."
+    exec "$VGL" angle=vulkan
+fi
+
+# --- Run a command with GPU --------------------------------------------
+# If server isn't running, auto-start it first
+if ! server_running; then
+    echo "Starting virgl server (ANGLE → Vulkan)..."
+    "$VGL" angle=vulkan
+    sleep 1
+    echo ""
+fi
+
+exec "$VGL" "$@"

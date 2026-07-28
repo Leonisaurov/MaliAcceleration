@@ -110,8 +110,19 @@ depends=$(grep -E "^Depends:" "$CTRL_FILE" | sed 's/^Depends: *//')
 [ -z "$license" ] && license="custom"
 [ -z "$url" ] && url="https://github.com/ar37-rs/virgl-angle"
 
-# Sanitize version for pacman (remove epoch colons, etc.)
+# Sanitize version for pacman
 pkgver=$(echo "$pkgver" | sed 's/^[0-9]*://')  # strip epoch
+# Debian version: [epoch:]upstream[-debian_revision]
+# Pacman version: [epoch:]pkgver-pkgrel
+# Replace hyphens in upstream part (before last '-') with periods.
+case "$pkgver" in
+    *-*)
+        upstream="${pkgver%-*}"
+        deb_revision="${pkgver##*-}"
+        upstream=$(echo "$upstream" | tr '-' '.')
+        pkgver="${upstream}-${deb_revision}"
+        ;;
+esac
 
 echo "  Package : $pkgname"
 echo "  Version : $pkgver"
@@ -155,35 +166,34 @@ PKGINFO="$WORKDIR/.PKGINFO"
 } > "$PKGINFO"
 
 # --- Build the .pkg.tar.xz -------------------------------------------
-cd "$DATA_DIR"
 OUTPUT_DIR=$(dirname "$(realpath "$DEB_FILE")")
 OUTPUT_FILE="$OUTPUT_DIR/${pkgname}-${pkgver}-${arch}.pkg.tar.xz"
 
 echo "==> Building: $(basename "$OUTPUT_FILE")"
 
-# Create the package archive: files first, then .PKGINFO at the root
-tar -cJf "$OUTPUT_FILE" \
-    --owner=0 --group=0 \
-    --transform="s|^\./||" \
-    --transform="s|^$WORKDIR/\.PKGINFO|.PKGINFO|" \
-    . "$PKGINFO" 2>/dev/null || \
-tar -cJf "$OUTPUT_FILE" \
-    --owner=0 --group=0 \
-    . 2>/dev/null
+# Stage in a clean tempdir: .PKGINFO at root + data files underneath
+STAGING=$(mktemp -d)
+cp "$PKGINFO" "$STAGING/.PKGINFO"
+# Copy extracted data into staging, skipping DEBIAN control dir
+(cd "$DATA_DIR" && tar -cf - --exclude=DEBIAN .) | (cd "$STAGING" && tar -xf -) || {
+    echo "ERROR: Failed to copy extracted data" >&2
+    rm -rf "$STAGING"
+    exit 1
+}
 
-# If the above failed, try simpler approach
-if [ ! -f "$OUTPUT_FILE" ] || [ ! -s "$OUTPUT_FILE" ]; then
-    cd "$DATA_DIR"
-    # Pack files first
-    tar -cJf "$OUTPUT_FILE" --owner=0 --group=0 .
-    # Create a temp dir with .PKGINFO added
-    TMPPKG=$(mktemp -d)
-    cp "$PKGINFO" "$TMPPKG/.PKGINFO"
-    cp -r "$DATA_DIR"/* "$TMPPKG/" 2>/dev/null || true
-    cd "$TMPPKG"
-    tar -cJf "$OUTPUT_FILE" --owner=0 --group=0 .
-    rm -rf "$TMPPKG"
-fi
+cd "$STAGING"
+# List all entries explicitly (no '.' directory entry) so pacman sees .PKGINFO, data/...
+# GNU tar recursively adds directory contents when the dir name is listed.
+entries=$(find . ! -name . -prune | sed 's|^\./||' | sort)
+tar -cJf "$OUTPUT_FILE" \
+    --owner=0 --group=0 \
+    $entries \
+    2>/dev/null || {
+    echo "ERROR: Failed to create package archive" >&2
+    rm -rf "$STAGING"
+    exit 1
+}
+rm -rf "$STAGING"
 
 echo ""
 echo "✅ Done: $(basename "$OUTPUT_FILE")"

@@ -215,6 +215,29 @@ Then:
 gpu glxgears -info
 ```
 
+### Using the `gpu` convenience wrapper
+
+This repo includes a `config/gpu` script that wraps `~/vgl` with automatic
+ANGLE → Vulkan:
+
+```bash
+# Copy to your home (or anywhere in PATH)
+cp config/gpu ~/gpu && chmod +x ~/gpu
+
+# Start the server
+~/gpu
+
+# Run an app (auto-starts server if needed)
+~/gpu glxgears -info
+
+# Kill the server
+~/gpu q
+```
+
+The wrapper auto-detects if the virgl server is running and starts it with
+`angle=vulkan` if needed. It also passes through any `vgl` argument directly
+(`use-android`, `2.1COMPAT`, `q`, etc.).
+
 ---
 
 ## Verification
