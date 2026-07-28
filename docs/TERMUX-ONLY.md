@@ -44,6 +44,11 @@ Only the last hop is the real GPU — everything above it is translation.
 
 All commands run in **Termux** (no proot involved).
 
+> **Package manager note:** These steps use `pkg` (Termux's apt frontend). If you use
+> **pacman** instead, see the [Pacman alternative](#pacman-alternative) at the end of
+> this section for the equivalent commands. The `vgl` script and the rest of the
+> guide work identically regardless of package manager.
+
 ### 0. (Optional) Clone this repo
 
 ```bash
@@ -89,6 +94,39 @@ pkg remove *icd-swrast && pkg install vulkan-loader-generic wget openssl && \
 > **Note:** `pkg remove *icd-swrast` relies on the shell passing the unmatched
 > glob through to `apt`. If your shell sets `failglob` or `nullglob` differently
 > from Termux's default, quote it: `pkg remove '*icd-swrast'`.
+
+### Pacman alternative
+
+If you use **pacman** instead of `pkg`/`apt`, the package names are the same but
+some packages are only distributed as `.deb` from the upstream
+[ar37-rs/virgl-angle](https://github.com/ar37-rs/virgl-angle) releases.
+
+```bash
+# 1. Base dependencies from pacman
+pacman -S dpkg wget which vulkan-loader-generic openssl
+
+# 2. virglrenderer (modified for ANGLE) — only available as .deb from upstream
+cd && wget https://github.com/ar37-rs/virgl-angle/releases/download/latest/virglrenderer_1.1.1-latest_aarch64.deb && \
+  dpkg -i virglrenderer_1.1.1-latest_aarch64.deb
+
+# 3. angle-android — only available as .deb from upstream
+wget https://github.com/ar37-rs/virgl-angle/releases/download/latest/angle-android_2.1.2-latest.deb && \
+  dpkg -i angle-android_2.1.2-latest.deb
+
+# 4. mesa-vulkan-icd-wrapper — only available as .deb from upstream
+wget https://github.com/ar37-rs/virgl-angle/releases/download/latest/mesa-vulkan-icd-wrapper_25.0.0-1_aarch64.deb && \
+  dpkg -i mesa-vulkan-icd-wrapper_25.0.0-1_aarch64.deb
+```
+
+> **Note:** The `vgl` script's `~/vgl i` command uses `pkg` internally and will
+> not work with pacman. Install everything manually as shown above, then ignore
+> `~/vgl i`. All other `~/vgl` commands (`angle=vulkan`, `q`, launching apps,
+> etc.) are package-manager-agnostic.
+
+> **About dpkg + pacman coexistence:** `dpkg` and `pacman` have separate
+> databases in Termux and can coexist safely. Use pacman for system packages and
+> `dpkg -i` only for these three `.deb` files from upstream. Do not mix both
+> package managers for the same package.
 
 ---
 
@@ -315,6 +353,31 @@ DISPLAY=:1 ~/vgl glxgears -info
 
 If you see `virgl (ANGLE (ARM, Vulkan ...))` in the renderer string,
 acceleration is working.
+
+#### Pacman quick-start
+
+```bash
+# --- Install everything (pacman) ---
+pacman -S dpkg wget which vulkan-loader-generic openssl && \
+cd && rm -f ~/vgl && \
+wget https://github.com/ar37-rs/virgl-angle/raw/refs/heads/main/vgl && \
+chmod +x ~/vgl && \
+wget https://github.com/ar37-rs/virgl-angle/releases/download/latest/virglrenderer_1.1.1-latest_aarch64.deb && \
+dpkg -i virglrenderer_1.1.1-latest_aarch64.deb && \
+wget https://github.com/ar37-rs/virgl-angle/releases/download/latest/angle-android_2.1.2-latest.deb && \
+dpkg -i angle-android_2.1.2-latest.deb && \
+wget https://github.com/ar37-rs/virgl-angle/releases/download/latest/mesa-vulkan-icd-wrapper_25.0.0-1_aarch64.deb && \
+dpkg -i mesa-vulkan-icd-wrapper_25.0.0-1_aarch64.deb
+
+# --- Start the server ---
+~/vgl angle=vulkan
+
+# --- (in another Termux session) Start X and run a test ---
+termux-x11 :1 -ac -dpi 192 &
+sleep 3
+am start --user 0 -n com.termux.x11/.MainActivity
+DISPLAY=:1 ~/vgl glxgears -info
+```
 
 ---
 
