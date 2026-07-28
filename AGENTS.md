@@ -27,6 +27,7 @@ packages/
   PKGBUILD.*        Reference PKGBUILD files for each package
   README.md         How to use the pacman packages
 scripts/
+  setup.sh          Full installer: packages, vgl, gpu wrapper, ICD fix
   start-ubuntu.sh   Termux-host launcher (editing required)
   start-xfce.sh     proot-guest desktop launcher (drop-session-manager pattern)
 virgl-angle/
