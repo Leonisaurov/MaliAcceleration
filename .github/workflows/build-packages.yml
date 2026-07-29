@@ -11,7 +11,7 @@ on:
     - cron: '0 6 * * 1'  # Weekly: Monday 6:00 UTC
 
 env:
-  NDK_VERSION: r27
+  NDK_VERSION: r26
 
 jobs:
   build-virglrenderer:
