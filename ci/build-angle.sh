@@ -53,7 +53,7 @@ HWBUF="$NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/androi
 if [ -f "$HWBUF" ] && grep -q "1UL << 32" "$HWBUF" 2>/dev/null; then
     echo "Patching NDK hardware_buffer.h (1UL -> 1ULL for ARM32 compat)..."
     # NDK from cache may be read-only; ensure writable before sed -i
-    chmod +w "$HWBUF"
+    sudo chmod +w "$HWBUF"
     sed -i 's/1UL << 32/1ULL << 32/g' "$HWBUF"
 fi
 
