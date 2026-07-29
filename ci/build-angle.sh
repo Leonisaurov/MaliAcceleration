@@ -60,20 +60,40 @@ fi
 # 2. libnativewindow: NDK r27 moved it. Create symlinks for all targets that ANGLE needs.
 echo "Creating libnativewindow symlinks for all architectures..."
 NATIVE_COUNT=0
-find "$NDK_DIR" -name "libnativewindow*" -type f 2>/dev/null | while read -r native_lib; do
-    # Create a corresponding symlink in each architecture directory
-    # Extract the architecture part (e.g., "arm-linux-androideabi", "aarch64-linux-android")
+# Use process substitution (not pipe) so NATIVE_COUNT is visible outside the loop.
+# Remove -type f so symlinks are also found (NDK r27 uses symlinks internally).
+while IFS= read -r -d '' native_lib; do
     ARCH_DIR=$(dirname "$native_lib")
     ARCH_NAME=$(basename "$ARCH_DIR")
-    
-    # Create a copy/symlink in the standard library path
     TARGET_DIR="$NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/$ARCH_NAME"
     if [ ! -f "$TARGET_DIR/libnativewindow.so" ]; then
         cp -n "$native_lib" "$TARGET_DIR/libnativewindow.so" 2>/dev/null || \
         ln -sf "$native_lib" "$TARGET_DIR/libnativewindow.so" 2>/dev/null || true
         NATIVE_COUNT=$((NATIVE_COUNT + 1))
+        echo "  [+] $ARCH_NAME"
     fi
-done
+done < <(find "$NDK_DIR" -name "libnativewindow*" -not -type d -print0 2>/dev/null)
+
+# Fallback: if nothing found via direct lookup, search broadly
+# and create symlinks for all architectures ANGLE needs.
+if [ "$NATIVE_COUNT" -eq 0 ]; then
+    echo "  No libnativewindow found in sysroot. Searching NDK platform dirs..."
+    FOUND=$(find "$NDK_DIR" -name "libnativewindow*" -not -type d -print -quit 2>/dev/null || true)
+    if [ -n "$FOUND" ]; then
+        for target in aarch64-linux-android arm-linux-androideabi; do
+            TARGET_DIR="$NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/$target"
+            mkdir -p "$TARGET_DIR"
+            if [ ! -f "$TARGET_DIR/libnativewindow.so" ]; then
+                cp -n "$FOUND" "$TARGET_DIR/libnativewindow.so" 2>/dev/null || \
+                ln -sf "$FOUND" "$TARGET_DIR/libnativewindow.so" 2>/dev/null || true
+                NATIVE_COUNT=$((NATIVE_COUNT + 1))
+                echo "  [+] $target (from $(basename "$(dirname "$FOUND")"))"
+            fi
+        done
+    else
+        echo "  WARNING: libnativewindow not found anywhere in NDK. Build may fail for ARM32."
+    fi
+fi
 echo "  Created/linked libnativewindow for ${NATIVE_COUNT} target(s)"
 
 echo ""
