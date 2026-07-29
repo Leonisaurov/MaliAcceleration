@@ -47,6 +47,37 @@ echo "NDK:       $NDK_DIR"
 echo "Jobs:      $NINJA_JOBS"
 echo ""
 
+# --- NDK r27 workarounds ----------------------------------------------
+# 1. Patch hardware_buffer.h: 1UL << 32 is illegal on ARM32 (unsigned long is 32-bit)
+HWBUF="$NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/android/hardware_buffer.h"
+if [ -f "$HWBUF" ] && grep -q "1UL << 32" "$HWBUF" 2>/dev/null; then
+    echo "Patching NDK hardware_buffer.h (1UL -> 1ULL for ARM32 compat)..."
+    sed -i 's/1UL << 32/1ULL << 32/g' "$HWBUF"
+fi
+
+# 2. libnativewindow: NDK r27 moved it, create symlink if needed
+NATIVE_WINDOW_LIB="$NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libnativewindow.so"
+if [ ! -f "$NATIVE_WINDOW_LIB" ]; then
+    # Search for it in NDK
+    FOUND=$(find "$NDK_DIR" -name "libnativewindow*" 2>/dev/null | head -1)
+    if [ -n "$FOUND" ]; then
+        echo "Creating symlink for libnativewindow: $FOUND"
+        mkdir -p "$(dirname "$NATIVE_WINDOW_LIB")"
+        ln -sf "$FOUND" "$NATIVE_WINDOW_LIB"
+    else
+        # Try to find for ARM32 as well
+        FOUND32=$(find "$NDK_DIR" -name "libnativewindow*" -path "*/arm*" 2>/dev/null | head -1)
+        if [ -n "$FOUND32" ]; then
+            echo "Creating symlinks for libnativewindow..."
+            # Use the found file as reference
+            mkdir -p "$(dirname "$NATIVE_WINDOW_LIB")"
+            ln -sf "$FOUND32" "$NATIVE_WINDOW_LIB"
+        fi
+    fi
+fi
+
+echo ""
+
 BUILD_BASE="${TMPDIR:-/tmp}/angle-build"
 mkdir -p "$BUILD_BASE"
 
