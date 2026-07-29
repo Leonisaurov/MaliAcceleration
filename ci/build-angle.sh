@@ -57,25 +57,24 @@ if [ -f "$HWBUF" ] && grep -q "1UL << 32" "$HWBUF" 2>/dev/null; then
     sed -i 's/1UL << 32/1ULL << 32/g' "$HWBUF"
 fi
 
-# 2. libnativewindow: NDK r27 moved it, create symlink if needed
-NATIVE_WINDOW_LIB="$NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libnativewindow.so"
-if [ ! -f "$NATIVE_WINDOW_LIB" ]; then
-    # Search for it in NDK (use find -quit to avoid pipefail SIGPIPE)
-    FOUND=$(find "$NDK_DIR" -name "libnativewindow*" -print -quit 2>/dev/null || true)
-    if [ -n "$FOUND" ]; then
-        echo "Creating symlink for libnativewindow: $FOUND"
-        mkdir -p "$(dirname "$NATIVE_WINDOW_LIB")"
-        ln -sf "$FOUND" "$NATIVE_WINDOW_LIB"
-    else
-        # Try to find for ARM32 as well
-        FOUND32=$(find "$NDK_DIR" -name "libnativewindow*" -path "*/arm*" -print -quit 2>/dev/null || true)
-        if [ -n "$FOUND32" ]; then
-            echo "Creating symlinks for libnativewindow..."
-            mkdir -p "$(dirname "$NATIVE_WINDOW_LIB")"
-            ln -sf "$FOUND32" "$NATIVE_WINDOW_LIB"
-        fi
+# 2. libnativewindow: NDK r27 moved it. Create symlinks for all targets that ANGLE needs.
+echo "Creating libnativewindow symlinks for all architectures..."
+NATIVE_COUNT=0
+find "$NDK_DIR" -name "libnativewindow*" -type f 2>/dev/null | while read -r native_lib; do
+    # Create a corresponding symlink in each architecture directory
+    # Extract the architecture part (e.g., "arm-linux-androideabi", "aarch64-linux-android")
+    ARCH_DIR=$(dirname "$native_lib")
+    ARCH_NAME=$(basename "$ARCH_DIR")
+    
+    # Create a copy/symlink in the standard library path
+    TARGET_DIR="$NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/$ARCH_NAME"
+    if [ ! -f "$TARGET_DIR/libnativewindow.so" ]; then
+        cp -n "$native_lib" "$TARGET_DIR/libnativewindow.so" 2>/dev/null || \
+        ln -sf "$native_lib" "$TARGET_DIR/libnativewindow.so" 2>/dev/null || true
+        NATIVE_COUNT=$((NATIVE_COUNT + 1))
     fi
-fi
+done
+echo "  Created/linked libnativewindow for ${NATIVE_COUNT} target(s)"
 
 echo ""
 
