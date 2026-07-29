@@ -162,6 +162,7 @@ if [ ! -f "$NDK_SYSROOT/usr/include/pthread_barrier_compat.h" ]; then
 #define _PTHREAD_BARRIER_COMPAT_H_
 
 #include <pthread.h>
+#include <errno.h>
 
 #ifdef __cplusplus
 extern "C" {
