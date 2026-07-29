@@ -70,7 +70,7 @@ cd "$SOURCE_DIR"
 
 # --- Debug: check sysroot contents --------------------------------------
 echo "=== Debug: Sysroot pkg-config files ==="
-find "$SYSROOT_DIR" -name "*.pc" 2>/dev/null | head -30 | sort
+find "$SYSROOT_DIR" -name "*.pc" 2>/dev/null | head -30 | sort || true
 echo ""
 
 echo "=== Debug: Checking for epoxy.pc ==="
@@ -80,12 +80,12 @@ if [ -f "$SYSROOT_DIR/data/data/com.termux/files/usr/lib/pkgconfig/epoxy.pc" ]; 
 else
     echo "  epoxy.pc NOT FOUND at expected path"
     # Search for it anywhere in sysroot
-    find "$SYSROOT_DIR" -name "epoxy*" 2>/dev/null | head -10
+    find "$SYSROOT_DIR" -name "epoxy*" 2>/dev/null | head -10 || true
 fi
 echo ""
 
 echo "=== Debug: Checking for gl.pc (from mesa) ==="
-find "$SYSROOT_DIR" -name "gl.pc" 2>/dev/null | head -5
+find "$SYSROOT_DIR" -name "gl.pc" 2>/dev/null | head -5 || true
 echo ""
 
 # --- Meson cross-compile ------------------------------------------------
@@ -109,7 +109,7 @@ if [ ! -d "build/meson-info" ]; then
         echo "WARNING: pkg-config cannot find epoxy. Check sysroot."
         pkg-config --variable=pcfiledir epoxy 2>&1 || true
         echo "  Available epoxy-related .pc files:"
-        find "$PKG_CONFIG_LIBDIR" -name "*epoxy*" -o -name "*gl*" 2>/dev/null | head -10
+        find "$PKG_CONFIG_LIBDIR" -name "*epoxy*" -o -name "*gl*" 2>/dev/null | head -10 || true
     else
         echo "  pkg-config epoxy: OK ($(pkg-config --modversion epoxy))"
     fi
