@@ -24,6 +24,7 @@ PACKAGES_URL="$TERMUX_REPO/dists/stable/main/binary-aarch64/Packages.gz"
 PACKAGES=(
     "libdrm"
     "libepoxy"
+    "libgbm"
     "libglvnd"
     "libx11"
     "mesa"

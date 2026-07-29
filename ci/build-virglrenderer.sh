@@ -88,6 +88,11 @@ echo "=== Debug: Checking for gl.pc (from mesa) ==="
 find "$SYSROOT_DIR" -name "gl.pc" 2>/dev/null | head -5 || true
 echo ""
 
+echo "=== Debug: Searching for gbm.h ==="
+find "$SYSROOT_DIR" -name "gbm.h" 2>/dev/null | head -5 | sed 's|.*/data|  /data|'
+find "$NDK_SYSROOT" -name "gbm.h" 2>/dev/null | head -5 || true
+echo ""
+
 # --- Ensure Android log/log.h exists (NDK r27+ removed it) ------------
 # The NDK clang (aarch64-linux-android21-clang) has its own --sysroot
 # pointing to $NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64/sysroot.
