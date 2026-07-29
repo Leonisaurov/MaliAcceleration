@@ -60,10 +60,13 @@ for pkg in "${PACKAGES[@]}"; do
     fi
     
     # Extract the Filename field from Packages.gz for this package
+    # Note: awk's `exit` causes SIGPIPE to zcat; temporarily disable pipefail.
+    set +o pipefail
     filename=$(zcat "$METADATA_FILE" | awk -v pkg="$pkg" '
         $1 == "Package:" && $2 == pkg { found=1; next }
         found && $1 == "Filename:" { print $2; found=0; exit }
     ')
+    set -o pipefail
     
     if [ -z "$filename" ]; then
         echo "WARNING: package '$pkg' not found in Termux repo" >&2
