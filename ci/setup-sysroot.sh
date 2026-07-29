@@ -28,6 +28,7 @@ PACKAGES=(
     "libglvnd"
     "libx11"
     "mesa"
+    "mesa-dev"
     "libxcb"
     "xorgproto"
     "libxdmcp"

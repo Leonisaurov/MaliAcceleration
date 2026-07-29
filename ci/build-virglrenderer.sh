@@ -91,9 +91,21 @@ echo "=== Debug: Checking for gl.pc (from mesa) ==="
 find "$SYSROOT_DIR" -name "gl.pc" 2>/dev/null | head -5 || true
 echo ""
 
+echo "=== Debug: Termux sysroot include dir ==="
+ls "$SYSROOT_DIR/data/data/com.termux/files/usr/include/" 2>/dev/null | head -30 || echo "  (empty or not found)"
+echo ""
+
 echo "=== Debug: Searching for gbm.h ==="
-find "$SYSROOT_DIR" -name "gbm.h" 2>/dev/null | head -5 | sed 's|.*/data|  /data|'
-find "$NDK_SYSROOT" -name "gbm.h" 2>/dev/null | head -5 || true
+find "$SYSROOT_DIR/data/data/com.termux/files/usr" -name "gbm.h" 2>/dev/null | head -10 || true
+find "$SYSROOT_DIR/data/data/com.termux/files/usr" -name "*gbm*" 2>/dev/null | head -10 || true
+echo ""
+
+echo "=== Debug: gbm pkg-config ==="
+pkg-config --cflags --libs gbm 2>&1 || echo "  pkg-config gbm: NOT FOUND"
+echo ""
+
+echo "=== Debug: ldconfig for libgbm ==="
+find "$SYSROOT_DIR/data/data/com.termux/files/usr/lib" -name "*gbm*" 2>/dev/null | head -5 || true
 echo ""
 
 # --- Ensure Android log/log.h exists (NDK r27+ removed it) ------------
