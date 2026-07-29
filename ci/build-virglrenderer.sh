@@ -48,6 +48,9 @@ if [ ! -d "$NDK_DIR" ]; then
     exit 1
 fi
 
+# NDK sysroot path (used for stubs and debug throughout the script)
+NDK_SYSROOT="$NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
+
 if ! command -v meson >/dev/null 2>&1; then
     echo "ERROR: meson not found. Install: pip install meson ninja" >&2
     exit 1
@@ -99,7 +102,6 @@ echo ""
 # NDK r27 removed <log/log.h> from there. We restore a minimal stub
 # directly into the NDK sysroot so the compiler finds it via its
 # built-in include path (no extra -I needed).
-NDK_SYSROOT="$NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
 if [ ! -f "$NDK_SYSROOT/usr/include/log/log.h" ]; then
     echo "Creating stub for log/log.h (not provided by NDK r27)"
     mkdir -p "$NDK_SYSROOT/usr/include/log"
@@ -254,17 +256,16 @@ if [ ! -d "build/meson-info" ]; then
         echo "  pkg-config epoxy: OK ($(pkg-config --modversion epoxy))"
     fi
     
-    # NDK sysroot for Android native headers (log/log.h, etc.)
-    # NOTE: Do NOT add --sysroot here. The NDK clang wrapper
-    # (aarch64-linux-android21-clang) already sets --sysroot internally
-    # to its own NDK sysroot which provides crt*.o, libdl.so, libc.so, etc.
-    # Overriding it with the Termux sysroot breaks the linker.
-    # Termux headers/libraries are found via PKG_CONFIG_SYSROOT_DIR and -I/-L
-    # added by pkg-config through meson.
+    # Dual --sysroot strategy:
+    #   --sysroot=$NDK_SYSROROOT         → NDK provides crt*.o, libc.so, libdl.so, log/log.h
+    #   -isystem $SYSROOT_DIR$TERMUX_PREFIX/include → Termux provides gbm.h, epoxy, libdrm
+    #   -L$SYSROOT_DIR$TERMUX_PREFIX/lib → linker finds Termux libraries
+    #   -include $NDK_SYSROOT/.../pthread_barrier_compat.h → NDK r27 compat stub
     NDK_SYSROOT="$NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
+    TERMUX_PREFIX="/data/data/com.termux/files/usr"
     
-    CFLAGS="-include $NDK_SYSROOT/usr/include/pthread_barrier_compat.h -isystem $NDK_SYSROOT/usr/include -O2 -Wno-error=gnu-offsetof-extensions" \
-    LDFLAGS="" \
+    CFLAGS="--sysroot=$NDK_SYSROOT -isystem $SYSROOT_DIR$TERMUX_PREFIX/include -include $NDK_SYSROOT/usr/include/pthread_barrier_compat.h -O2 -Wno-error=gnu-offsetof-extensions" \
+    LDFLAGS="--sysroot=$NDK_SYSROOT -L$SYSROOT_DIR$TERMUX_PREFIX/lib" \
     PKG_CONFIG_LIBDIR="$PKG_CONFIG_LIBDIR" \
     PKG_CONFIG_SYSROOT_DIR="$PKG_CONFIG_SYSROOT_DIR" \
     meson setup build \
