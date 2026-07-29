@@ -1,0 +1,161 @@
+name: Build GPU Packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Override version tag (optional)'
+        required: false
+        type: string
+  schedule:
+    - cron: '0 6 * * 1'  # Weekly: Monday 6:00 UTC
+
+env:
+  NDK_VERSION: r27
+
+jobs:
+  build-virglrenderer:
+    name: Build virglrenderer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build pkg-config python3-pip wget xz-utils
+          pip3 install meson
+
+      - name: Setup Android NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: ${{ env.NDK_VERSION }}
+          add-to-path: false
+          local-cache: true
+
+      - name: Setup Termux sysroot (dependencies)
+        run: |
+          mkdir -p .build/sysroot
+          cd .build/sysroot
+
+          # Download and extract Termux dependency .debs
+          # libdrm
+          wget -q -c https://packages.termux.dev/apt/termux-main/pool/main/libd/libdrm/libdrm_2.4.124_aarch64.deb -O libdrm.deb
+          dpkg-deb -x libdrm.deb . 2>/dev/null || ar p libdrm.deb data.tar.xz | tar -xJ 2>/dev/null
+
+          # libepoxy
+          wget -q -c https://packages.termux.dev/apt/termux-main/pool/main/libe/libepoxy/libepoxy_1.5.10-1_aarch64.deb -O libepoxy.deb
+          dpkg-deb -x libepoxy.deb . 2>/dev/null || ar p libepoxy.deb data.tar.xz | tar -xJ 2>/dev/null
+
+          # libglvnd
+          wget -q -c https://packages.termux.dev/apt/termux-main/pool/main/libg/libglvnd/libglvnd_1.7.0-1_aarch64.deb -O libglvnd.deb
+          dpkg-deb -x libglvnd.deb . 2>/dev/null || ar p libglvnd.deb data.tar.xz | tar -xJ 2>/dev/null
+
+          # libx11
+          wget -q -c https://packages.termux.dev/apt/termux-main/pool/main/libx/libx11/libx11_1.8.10_aarch64.deb -O libx11.deb
+          dpkg-deb -x libx11.deb . 2>/dev/null || ar p libx11.deb data.tar.xz | tar -xJ 2>/dev/null
+
+          # mesa (big package)
+          wget -q -c https://packages.termux.dev/apt/termux-main/pool/main/m/mesa/mesa_26.0.6-3_aarch64.deb -O mesa.deb
+          dpkg-deb -x mesa.deb . 2>/dev/null || ar p mesa.deb data.tar.xz | tar -xJ 2>/dev/null
+
+          # libxcb (dependency)
+          wget -q -c https://packages.termux.dev/apt/termux-main/pool/main/libx/libxcb/libxcb_1.17.0_aarch64.deb -O libxcb.deb
+          dpkg-deb -x libxcb.deb . 2>/dev/null || ar p libxcb.deb data.tar.xz | tar -xJ 2>/dev/null
+
+          # xorgproto (build dep)
+          wget -q -c https://packages.termux.dev/apt/termux-main/pool/main/x/xorgproto/xorgproto_2024.5-1_all.deb -O xorgproto.deb
+          dpkg-deb -x xorgproto.deb . 2>/dev/null || ar p xorgproto.deb data.tar.xz | tar -xJ 2>/dev/null
+
+          echo "Sysroot ready"
+          find . -name "*.pc" -path "*/pkgconfig/*" 2>/dev/null | head -10
+
+      - name: Build virglrenderer
+        run: |
+          # Fix meson cross-file NDK path
+          NDK_PATH="$ANDROID_NDK_ROOT"
+          sed -i "s|/opt/android-ndk|$NDK_PATH|g" ci/aarch64-linux-android-cross.ini
+
+          # Run build
+          chmod +x ci/build-virglrenderer.sh
+          SYSROOT_DIR="$PWD/.build/sysroot" \
+            NDK_DIR="$NDK_PATH" \
+            NINJA_JOBS=2 \
+            ./ci/build-virglrenderer.sh
+        shell: bash
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: virglrenderer-pkg
+          path: packages/virglrenderer*.pkg.tar.xz
+          if-no-files-found: error
+
+  build-icd-wrapper:
+    name: Build mesa-vulkan-icd-wrapper
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate ICD wrapper
+        run: |
+          chmod +x ci/build-icd.sh
+          # Since we're on x86_64 CI runner, there's no Mali driver.
+          # Create a generic ICD that points to the standard Mali path.
+          # The script handles this case gracefully.
+          ./ci/build-icd.sh
+        shell: bash
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: icd-wrapper-pkg
+          path: packages/mesa-vulkan-icd-wrapper*.pkg.tar.xz
+          if-no-files-found: error
+
+  create-release:
+    name: Create Release
+    needs: [build-virglrenderer, build-icd-wrapper]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: List artifacts
+        run: ls -lh artifacts/
+
+      - name: Generate release info
+        id: release_info
+        run: |
+          DATE=$(date -u +%Y%m%d-%H%M%S)
+          echo "tag=ci-build-$DATE" >> $GITHUB_OUTPUT
+          echo "name=CI Build $DATE" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release_info.outputs.tag }}
+          name: ${{ steps.release_info.outputs.name }}
+          body: |
+            ## CI Build Packages
+
+            - virglrenderer: built from source (freedesktop.org)
+            - mesa-vulkan-icd-wrapper: auto-generated
+
+            Install:
+            ```
+            pacman -U *.pkg.tar.xz
+            ```
+
+            Built: $(date -u)
+          files: artifacts/*
+          draft: false
+          prerelease: false
+          generate_release_notes: false

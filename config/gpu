@@ -2,81 +2,715 @@
 # =============================================================================
 #  gpu  —  GPU acceleration wrapper for Mali in Termux
 # =============================================================================
-#  Automatically uses ANGLE → Vulkan backend.
+#  Self-contained script. No external dependencies (except system binaries).
+#  Replaces the legacy ~/vgl wrapper with everything built-in.
 #
 #  Usage:
-#    gpu                      Start the virgl server (ANGLE → Vulkan)
-#    gpu <app> [args]         Run an app with GPU acceleration
-#                               (auto-starts server if needed)
-#    gpu q                    Kill the virgl server
-#    gpu --help               Show this help
+#    gpu                          Start virgl server (auto profile)
+#    gpu <app> [args]             Run app with GPU acceleration
+#    gpu q                        Kill the virgl server
+#    gpu info                     Show diagnostic info
+#    gpu --help / -h              Show this help
+#    gpu angle=vulkan             Switch to ANGLE Vulkan backend
+#    gpu angle=vulkan-null        Switch to ANGLE Vulkan-Null backend
+#    gpu angle=gl                 Switch to ANGLE OpenGL backend (debug)
+#    gpu use-android              Switch to native virgl (no ANGLE)
+#    gpu use-angle                Switch back to ANGLE
+#    gpu <profile>                Set GL profile (e.g. 4.3COMPAT)
+#    gpu config=d3d / cfg=d3d     Enable D3D compat mode
+#    gpu config=gl / cfg=gl       Disable D3D compat mode
+#    gpu update-angle             Update ANGLE build
+#    gpu update-renderer          Update virglrenderer
+#    gpu update-virgl             Same as update-renderer
 #
-#  Examples:
-#    gpu                       → starts server with ~/vgl angle=vulkan
-#    gpu glxgears -info        → runs glxgears accelerated
-#    DISPLAY=:1 gpu glmark2    → runs glmark2 on display :1
-#    gpu q                     → kills the server
-#
-#  This is a convenience wrapper around the vgl toolkit from:
-#    https://github.com/ar37-rs/virgl-angle
-#
-#  Requires: ~/vgl installed, mesa-vulkan-icd-wrapper, angle-android,
-#            virglrenderer packages.
+#  Profiles:
+#    2.1COMPAT  3.2COMPAT  3.3COMPAT  4.1COMPAT (default)
+#    4.3COMPAT  4.5COMPAT  4.6COMPAT
+#    3.2CORE    3.3CORE    4.1CORE    4.3CORE
+#    4.5CORE    4.6CORE
 # =============================================================================
 
-VGL="${HOME}/vgl"
+# --- Paths (Termux-safe) -------------------------------------------------
+PREFIX="${PREFIX:-/data/data/com.termux/files/usr}"
+HOME="${HOME:-/data/data/com.termux/files/home}"
+ANGLE_BASE="$PREFIX/opt/angle-android"
 
-# --- Help --------------------------------------------------------------
-if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
-    sed -n '/^#  Usage/,/^$/p' "$0" | sed 's/^#  //'
-    echo ""
-    echo "Advanced: any 'vgl' command also works:"
-    echo "  gpu use-android              Fallback (no ANGLE)"
-    echo "  gpu angle=gl                 ANGLE → OpenGL (debug)"
-    echo "  gpu 2.1COMPAT                Force OpenGL 2.1"
-    echo "  gpu q                        Kill server"
-    echo "  gpu update-angle             Update ANGLE build"
-    echo ""
-    exit 0
-fi
+# ===========================================================================
+#  FUNCTIONS
+# ===========================================================================
 
-# --- Check vgl ---------------------------------------------------------
-if [ ! -x "$VGL" ]; then
-    echo "ERROR: ~/vgl not found." >&2
-    echo "  Install: cd && wget https://github.com/ar37-rs/virgl-angle/raw/refs/heads/main/vgl && chmod +x ~/vgl" >&2
-    exit 1
-fi
-
-# --- Check if server is running ----------------------------------------
+# ------------------------------------------------------------------
+#  server_running  —  check if virgl_test_server is alive
+# ------------------------------------------------------------------
+#  Returns 0 (true) if at least one virgl_test_server process is found.
 server_running() {
     pgrep -f "virgl_test_server" >/dev/null 2>&1
 }
 
-# --- Kill server -------------------------------------------------------
-if [ "${1:-}" = "q" ]; then
-    exec "$VGL" q
-fi
+# ------------------------------------------------------------------
+#  detect_backend_mode  —  print current ANGLE / virgl mode
+# ------------------------------------------------------------------
+#  Reads sentinel files and prints one of:
+#    vulkan, vulkan-null, gl, android
+detect_backend_mode() {
+    if [ -f "$HOME/.vgl-android" ]; then
+        echo "android"
+    elif [ -f "$HOME/.vgl-angle-gl" ]; then
+        echo "gl"
+    elif [ -f "$HOME/.vgl-angle-vulkan" ]; then
+        echo "vulkan"
+    else
+        echo "vulkan-null"
+    fi
+}
 
-# --- vgl internal commands (pass through) ------------------------------
+# ------------------------------------------------------------------
+#  detect_profile  —  read sentinel files, print profile name
+# ------------------------------------------------------------------
+#  Priority: CORE variants first (more specific), then COMPAT,
+#  then default 4.1COMPAT.
+detect_profile() {
+    if [ -f "$HOME/.vgl-gl46-core" ]; then
+        echo "4.6CORE"
+    elif [ -f "$HOME/.vgl-gl45-core" ]; then
+        echo "4.5CORE"
+    elif [ -f "$HOME/.vgl-gl43-core" ]; then
+        echo "4.3CORE"
+    elif [ -f "$HOME/.vgl-gl41-core" ]; then
+        echo "4.1CORE"
+    elif [ -f "$HOME/.vgl-gl33-core" ]; then
+        echo "3.3CORE"
+    elif [ -f "$HOME/.vgl-gl32-core" ]; then
+        echo "3.2CORE"
+    elif [ -f "$HOME/.vgl-gl46" ]; then
+        echo "4.6COMPAT"
+    elif [ -f "$HOME/.vgl-gl45" ]; then
+        echo "4.5COMPAT"
+    elif [ -f "$HOME/.vgl-gl43" ]; then
+        echo "4.3COMPAT"
+    elif [ -f "$HOME/.vgl-gl33" ]; then
+        echo "3.3COMPAT"
+    elif [ -f "$HOME/.vgl-gl32" ]; then
+        echo "3.2COMPAT"
+    elif [ -f "$HOME/.vgl-gl21" ]; then
+        echo "2.1COMPAT"
+    else
+        echo "4.1COMPAT"
+    fi
+}
+
+# ------------------------------------------------------------------
+#  get_profile_vars  —  print export statements for a profile
+# ------------------------------------------------------------------
+#  Usage:  eval "$(get_profile_vars "4.3COMPAT")"
+#
+#  Prints four lines:
+#    export MESA_GL_VERSION_OVERRIDE=...
+#    export MESA_GLSL_VERSION_OVERRIDE=...
+#    export MESA_GLES_VERSION_OVERRIDE=...
+#    export MESA_EXTENSION_OVERRIDE=...
+#
+#  Handles D3D mode by appending -GL_EXT_texture_sRGB when
+#  ~/.vgl-d3d exists.
+get_profile_vars() {
+    local profile="$1"
+    local glver glsl gles ext
+
+    case "$profile" in
+        2.1COMPAT)
+            glver="2.1COMPAT"; glsl="120"; gles="2.0"
+            ext=""
+            ;;
+        3.2COMPAT)
+            glver="3.2COMPAT"; glsl="150"; gles="3.1"
+            ext="+GL_ARB_depth_clamp"
+            ;;
+        3.3COMPAT)
+            glver="3.3COMPAT"; glsl="330"; gles="3.1"
+            ext="+GL_ARB_depth_clamp +GL_ARB_blend_func_extended \
++GL_ARB_ES3_1_compatibility +GL_ARB_ES3_compatibility"
+            ;;
+        4.1COMPAT)
+            glver="4.1COMPAT"; glsl="410"; gles="3.1"
+            ext="+GL_ARB_depth_clamp +GL_ARB_blend_func_extended \
++GL_ARB_ES3_1_compatibility +GL_ARB_ES3_compatibility \
++GL_ARB_shader_atomic_counters +GL_ARB_shader_atomic_counter_ops"
+            ;;
+        4.3COMPAT)
+            glver="4.3COMPAT"; glsl="430"; gles="3.1"
+            ext="+GL_ARB_texture_view +GL_ARB_compute_shader \
++GL_ARB_compute_variable_group_size +GL_ARB_depth_clamp \
++GL_ARB_blend_func_extended +GL_ARB_ES3_1_compatibility \
++GL_ARB_ES3_compatibility +GL_ARB_shader_atomic_counters \
++GL_ARB_shader_atomic_counter_ops"
+            ;;
+        4.5COMPAT)
+            glver="4.5COMPAT"; glsl="450"; gles="3.1"
+            ext="+GL_ARB_texture_view +GL_ARB_compute_shader \
++GL_ARB_compute_variable_group_size +GL_ARB_depth_clamp \
++GL_ARB_blend_func_extended +GL_ARB_ES3_1_compatibility \
++GL_ARB_ES3_compatibility +GL_ARB_shader_atomic_counters \
++GL_ARB_shader_atomic_counter_ops +GL_ARB_cull_distance \
++GL_ARB_derivative_control +GL_ARB_shader_texture_image_samples \
++GL_ARB_texture_barrier +GL_ARB_clip_control \
++GL_ARB_get_texture_sub_image"
+            ;;
+        4.6COMPAT)
+            glver="4.6COMPAT"; glsl="460"; gles="3.1"
+            ext="+GL_ARB_texture_view +GL_ARB_compute_shader \
++GL_ARB_compute_variable_group_size +GL_ARB_depth_clamp \
++GL_ARB_blend_func_extended +GL_ARB_ES3_1_compatibility \
++GL_ARB_ES3_compatibility +GL_ARB_shader_atomic_counters \
++GL_ARB_shader_atomic_counter_ops +GL_ARB_cull_distance \
++GL_ARB_derivative_control +GL_ARB_shader_texture_image_samples \
++GL_ARB_texture_barrier +GL_ARB_clip_control \
++GL_ARB_get_texture_sub_image +GL_ARB_pipeline_statistics_query \
++GL_ARB_transform_feedback_overflow_query \
++GL_ARB_polygon_offset_clamp"
+            ;;
+        3.2CORE)
+            glver="3.2CORE"; glsl="150"; gles="3.1"
+            ext="+GL_ARB_depth_clamp"
+            ;;
+        3.3CORE)
+            glver="3.3CORE"; glsl="330"; gles="3.1"
+            ext="+GL_ARB_depth_clamp +GL_ARB_blend_func_extended \
++GL_ARB_ES3_1_compatibility +GL_ARB_ES3_compatibility"
+            ;;
+        4.1CORE)
+            glver="4.1CORE"; glsl="410"; gles="3.1"
+            ext="+GL_ARB_depth_clamp +GL_ARB_blend_func_extended \
++GL_ARB_ES3_1_compatibility +GL_ARB_ES3_compatibility \
++GL_ARB_shader_atomic_counters +GL_ARB_shader_atomic_counter_ops"
+            ;;
+        4.3CORE)
+            glver="4.3CORE"; glsl="430"; gles="3.1"
+            ext="+GL_ARB_texture_view +GL_ARB_compute_shader \
++GL_ARB_compute_variable_group_size +GL_ARB_depth_clamp \
++GL_ARB_blend_func_extended +GL_ARB_ES3_1_compatibility \
++GL_ARB_ES3_compatibility +GL_ARB_shader_atomic_counters \
++GL_ARB_shader_atomic_counter_ops"
+            ;;
+        4.5CORE)
+            glver="4.5CORE"; glsl="450"; gles="3.1"
+            ext="+GL_ARB_texture_view +GL_ARB_compute_shader \
++GL_ARB_compute_variable_group_size +GL_ARB_depth_clamp \
++GL_ARB_blend_func_extended +GL_ARB_ES3_1_compatibility \
++GL_ARB_ES3_compatibility +GL_ARB_shader_atomic_counters \
++GL_ARB_shader_atomic_counter_ops +GL_ARB_cull_distance \
++GL_ARB_derivative_control +GL_ARB_shader_texture_image_samples \
++GL_ARB_texture_barrier +GL_ARB_clip_control \
++GL_ARB_get_texture_sub_image"
+            ;;
+        4.6CORE)
+            glver="4.6CORE"; glsl="460"; gles="3.1"
+            ext="+GL_ARB_texture_view +GL_ARB_compute_shader \
++GL_ARB_compute_variable_group_size +GL_ARB_depth_clamp \
++GL_ARB_blend_func_extended +GL_ARB_ES3_1_compatibility \
++GL_ARB_ES3_compatibility +GL_ARB_shader_atomic_counters \
++GL_ARB_shader_atomic_counter_ops +GL_ARB_cull_distance \
++GL_ARB_derivative_control +GL_ARB_shader_texture_image_samples \
++GL_ARB_texture_barrier +GL_ARB_clip_control \
++GL_ARB_get_texture_sub_image +GL_ARB_pipeline_statistics_query \
++GL_ARB_transform_feedback_overflow_query \
++GL_ARB_polygon_offset_clamp"
+            ;;
+        *)
+            echo "Unknown profile: $profile" >&2
+            return 1
+            ;;
+    esac
+
+    # Apply D3D modifier if active
+    if [ -f "$HOME/.vgl-d3d" ]; then
+        if [ -n "$ext" ]; then
+            ext="$ext -GL_EXT_texture_sRGB"
+        else
+            ext="-GL_EXT_texture_sRGB"
+        fi
+    fi
+
+    # Print export statements
+    echo "export MESA_GL_VERSION_OVERRIDE=$glver"
+    echo "export MESA_GLSL_VERSION_OVERRIDE=$glsl"
+    echo "export MESA_GLES_VERSION_OVERRIDE=$gles"
+    if [ -n "$ext" ]; then
+        echo "export MESA_EXTENSION_OVERRIDE=\"$ext\""
+    else
+        echo "unset MESA_EXTENSION_OVERRIDE"
+    fi
+}
+
+# ------------------------------------------------------------------
+#  apply_env  —  export all env vars for GPU-accelerated execution
+# ------------------------------------------------------------------
+#  Called before exec'ing an app.  Sets both the fixed env vars
+#  and the profile-specific ones.
+apply_env() {
+    local profile
+    profile=$(detect_profile)
+
+    # Fixed vars (always set)
+    export MESA_LOADER_DRIVER_OVERRIDE=
+    export LIBGL_ALWAYS_SOFTWARE=1
+    export GALLIUM_DRIVER=virpipe
+    export MESA_NO_ERROR=1
+    export MESA_BACK_BUFFER=pixmap
+
+    # Profile-specific vars
+    eval "$(get_profile_vars "$profile")"
+}
+
+# ------------------------------------------------------------------
+#  set_profile  —  clear all profile sentinels, set the requested one
+# ------------------------------------------------------------------
+set_profile() {
+    local profile="$1"
+    local sentinel=""
+
+    # Map profile name → sentinel file
+    case "$profile" in
+        2.1COMPAT)  sentinel=".vgl-gl21"        ;;
+        3.2COMPAT)  sentinel=".vgl-gl32"        ;;
+        3.3COMPAT)  sentinel=".vgl-gl33"        ;;
+        4.1COMPAT)  sentinel=""                 ;;  # default: no sentinel
+        4.3COMPAT)  sentinel=".vgl-gl43"        ;;
+        4.5COMPAT)  sentinel=".vgl-gl45"        ;;
+        4.6COMPAT)  sentinel=".vgl-gl46"        ;;
+        3.2CORE)    sentinel=".vgl-gl32-core"   ;;
+        3.3CORE)    sentinel=".vgl-gl33-core"   ;;
+        4.1CORE)    sentinel=".vgl-gl41-core"   ;;
+        4.3CORE)    sentinel=".vgl-gl43-core"   ;;
+        4.5CORE)    sentinel=".vgl-gl45-core"   ;;
+        4.6CORE)    sentinel=".vgl-gl46-core"   ;;
+        *)
+            echo "Error: unknown profile '$profile'" >&2
+            return 1
+            ;;
+    esac
+
+    # Remove ALL profile sentinel files
+    rm -f "$HOME/.vgl-gl21"  "$HOME/.vgl-gl32"  "$HOME/.vgl-gl33" \
+          "$HOME/.vgl-gl43"  "$HOME/.vgl-gl45"  "$HOME/.vgl-gl46" \
+          "$HOME/.vgl-gl32-core" "$HOME/.vgl-gl33-core" \
+          "$HOME/.vgl-gl41-core" "$HOME/.vgl-gl43-core" \
+          "$HOME/.vgl-gl45-core" "$HOME/.vgl-gl46-core"
+
+    # Create the requested sentinel (if not default / 4.1COMPAT)
+    if [ -n "$sentinel" ]; then
+        touch "$HOME/$sentinel"
+    fi
+
+    echo "Profile set to: $profile"
+}
+
+# ------------------------------------------------------------------
+#  ensure_angle_symlinks  —  create ANGLE .so symlinks if missing
+# ------------------------------------------------------------------
+#  $1: ANGLE mode (vulkan, gl, vulkan-null)
+ensure_angle_symlinks() {
+    local mode="$1"
+    local dir="$ANGLE_BASE/$mode"
+
+    if [ ! -d "$dir" ]; then
+        echo "Warning: ANGLE directory not found: $dir" >&2
+        return 1
+    fi
+
+    if [ ! -f "$dir/libEGL.so.1" ] && [ -f "$dir/libEGL_angle.so" ]; then
+        ln -sf "libEGL_angle.so" "$dir/libEGL.so.1"
+    fi
+
+    if [ ! -f "$dir/libGLESv1_CM.so.1" ] && [ -f "$dir/libGLESv1_CM_angle.so" ]; then
+        ln -sf "libGLESv1_CM_angle.so" "$dir/libGLESv1_CM.so.1"
+    fi
+
+    if [ ! -f "$dir/libGLESv2.so.2" ] && [ -f "$dir/libGLESv2_angle.so" ]; then
+        ln -sf "libGLESv2_angle.so" "$dir/libGLESv2.so.2"
+    fi
+
+    return 0
+}
+
+# ------------------------------------------------------------------
+#  start_vgl_server  —  start (or restart) the virgl server
+# ------------------------------------------------------------------
+#  Determines mode from sentinel files, ensures ANGLE symlinks,
+#  starts the server if not already running.
+start_vgl_server() {
+    local mode
+    mode=$(detect_backend_mode)
+
+    if [ "$mode" = "android" ]; then
+        # --- Native virgl (no ANGLE) ---
+        local server=""
+        if command -v virgl_test_server_android >/dev/null 2>&1; then
+            server="virgl_test_server_android"
+        elif command -v virgl-angle >/dev/null 2>&1; then
+            server="virgl-angle"
+        else
+            echo "Error: no virgl server binary found." >&2
+            echo "  Expected: virgl_test_server_android or virgl-angle" >&2
+            return 1
+        fi
+
+        if ! server_running; then
+            echo "Starting virgl server (native android)..."
+            "$server" &
+            sleep 1
+        fi
+        echo "using virgl android."
+    else
+        # --- ANGLE mode ---
+        ensure_angle_symlinks "$mode" || true
+
+        if ! server_running; then
+            echo "Starting virgl server (ANGLE → ${mode})..."
+            LD_LIBRARY_PATH="$ANGLE_BASE/$mode" \
+                virgl_test_server --use-egl-surfaceless --use-gles &
+            sleep 1
+        fi
+
+        case "$mode" in
+            gl)          echo "using virgl angle=gl." ;;
+            vulkan)      echo "using virgl angle=vulkan." ;;
+            vulkan-null) echo "using virgl angle=vulkan-null." ;;
+        esac
+    fi
+
+    # Show active profile
+    local profile
+    profile=$(detect_profile)
+    echo "(OpenGL $profile profile)"
+
+    if [ -f "$HOME/.vgl-d3d" ]; then
+        echo "with d3d (Direct 3D) config."
+    else
+        echo "with default OpenGL/ES config."
+    fi
+}
+
+# ------------------------------------------------------------------
+#  kill_vgl_server  —  stop all virgl-related processes
+# ------------------------------------------------------------------
+kill_vgl_server() {
+    local pids
+    pids=$(pgrep -f "virgl" 2>/dev/null || true)
+    if [ -n "$pids" ]; then
+        # shellcheck disable=SC2086
+        kill -9 $pids 2>/dev/null || true
+        echo "virgl server killed."
+    else
+        echo "No virgl server running."
+    fi
+}
+
+# ------------------------------------------------------------------
+#  show_info  —  full diagnostic output
+# ------------------------------------------------------------------
+show_info() {
+    local profile
+    profile=$(detect_profile)
+    local mode
+    mode=$(detect_backend_mode)
+    local mode_desc
+
+    case "$mode" in
+        android)     mode_desc="Virgl native (no ANGLE)"     ;;
+        gl)          mode_desc="ANGLE → OpenGL"              ;;
+        vulkan)      mode_desc="ANGLE → Vulkan"              ;;
+        vulkan-null) mode_desc="ANGLE → Vulkan-Null"         ;;
+    esac
+
+    # Server status
+    local pid=""
+    local server_status="stopped"
+    if server_running; then
+        pid=$(pgrep -f "virgl_test_server" 2>/dev/null | head -1)
+        server_status="running (PID $pid)"
+    fi
+
+    # ANGLE symlinks check
+    local angle_dir="$ANGLE_BASE/$mode"
+    local symlinks_ok="N/A (native mode)"
+    if [ "$mode" != "android" ] && [ -d "$angle_dir" ]; then
+        if [ -f "$angle_dir/libEGL.so.1" ] && \
+           [ -f "$angle_dir/libGLESv1_CM.so.1" ] && \
+           [ -f "$angle_dir/libGLESv2.so.2" ]; then
+            symlinks_ok="OK"
+        else
+            symlinks_ok="MISSING"
+        fi
+    elif [ "$mode" = "android" ]; then
+        symlinks_ok="N/A (native mode)"
+    else
+        symlinks_ok="DIR NOT FOUND"
+    fi
+
+    local d3d_status="no"
+    [ -f "$HOME/.vgl-d3d" ] && d3d_status="yes"
+
+    # --- Print info box ---
+    echo ""
+    echo "╔══════════════════════════════════════════╗"
+    echo "║  GPU Acceleration Status                ║"
+    echo "╚══════════════════════════════════════════╝"
+    echo ""
+    printf "  %-18s %s\n" "Profile:"   "$profile"
+    printf "  %-18s %s\n" "Backend:"   "$mode_desc"
+    printf "  %-18s %s\n" "Server:"    "$server_status"
+    if [ "$mode" != "android" ]; then
+        printf "  %-18s %s\n" "ANGLE mode:" "$mode"
+        printf "  %-18s %s\n" "ANGLE libs:" "$symlinks_ok"
+    fi
+    printf "  %-18s %s\n" "D3D config:" "$d3d_status"
+    echo ""
+
+    # --- Renderer info ---
+    echo "  ── Renderer Info ──"
+    if command -v glxinfo >/dev/null 2>&1; then
+        local renderer_out
+        renderer_out=$(glxinfo -B 2>/dev/null | grep -E "OpenGL renderer|OpenGL version|OpenGL ES" | head -5)
+        if [ -n "$renderer_out" ]; then
+            echo "$renderer_out" | while IFS= read -r line; do
+                echo "    $line"
+            done
+        else
+            echo "    Could not get renderer info. Is DISPLAY set?"
+        fi
+    else
+        echo "    Install 'mesa-utils' for renderer info:"
+        echo "      pkg install mesa-utils"
+    fi
+    echo ""
+
+    # --- Extensions check ---
+    echo "  ── Extensions Check ──"
+    if command -v glxinfo >/dev/null 2>&1; then
+        # Use glxinfo (without -B which omits extensions)
+        # and grep without -P flag for Termux compatibility
+        local ext_found=0
+
+        for ext in GL_ARB_compute_shader GL_ARB_cull_distance \
+                   GL_ARB_texture_view GL_ARB_shader_atomic_counters; do
+            if glxinfo 2>/dev/null | grep -q "$ext"; then
+                echo "    [OK] $ext"
+                ext_found=1
+            else
+                echo "    [--] $ext"
+                ext_found=1
+            fi
+        done
+
+        if [ "$ext_found" -eq 0 ]; then
+            echo "    Could not retrieve extensions. Is DISPLAY set?"
+        fi
+    else
+        echo "    Install 'mesa-utils' for extension check:"
+        echo "      pkg install mesa-utils"
+    fi
+    echo ""
+
+    # --- Tips ---
+    echo "  ── Tips ──"
+    case "$profile" in
+        2.1COMPAT|3.2COMPAT|3.3COMPAT)
+            echo "    Try 'gpu 4.3COMPAT' for compute shader support"
+            ;;
+        4.1COMPAT)
+            echo "    Try 'gpu 4.3COMPAT' for compute shaders,"
+            echo "    or 'gpu 4.5COMPAT' for cull_distance and more"
+            ;;
+        4.3COMPAT|4.3CORE)
+            echo "    Try 'gpu 4.5COMPAT' for GL_ARB_cull_distance and more"
+            ;;
+        3.2CORE|3.3CORE|4.1CORE)
+            echo "    Try 'gpu 4.5COMPAT' for GL_ARB_cull_distance"
+            ;;
+        4.5COMPAT|4.5CORE)
+            echo "    Try 'gpu 4.6COMPAT' for pipeline statistics queries"
+            ;;
+        4.6COMPAT|4.6CORE)
+            echo "    You are at the highest profile available"
+            ;;
+    esac
+    if ! command -v glxinfo >/dev/null 2>&1; then
+        echo "    Install 'mesa-utils' for detailed info:"
+        echo "      pkg install mesa-utils"
+    fi
+    echo ""
+}
+
+# ------------------------------------------------------------------
+#  vhelp  —  print full usage information
+# ------------------------------------------------------------------
+vhelp() {
+    cat << 'HELP'
+Usage:  gpu [command] [args]
+
+  ── Start / Stop ──
+  gpu                          Start virgl server (current profile)
+  gpu q                        Kill the virgl server
+
+  ── Diagnostics ──
+  gpu info                     Show GPU acceleration status
+  gpu --help, -h               Show this help
+
+  ── Backend selection ──
+  gpu angle=vulkan             ANGLE → Vulkan (default)
+  gpu angle=vulkan-null        ANGLE → Vulkan-Null
+  gpu angle=gl                 ANGLE → OpenGL (debug)
+  gpu use-android              Virgl native, no ANGLE (fallback)
+  gpu use-angle                Switch back to ANGLE
+
+  ── Profile selection ──
+  gpu 2.1COMPAT                OpenGL 2.1 Compatibility Profile
+  gpu 3.2COMPAT                OpenGL 3.2 Compatibility Profile
+  gpu 3.3COMPAT                OpenGL 3.3 Compatibility Profile
+  gpu 4.1COMPAT                OpenGL 4.1 Compatibility Profile (default)
+  gpu 4.3COMPAT                OpenGL 4.3 Compatibility Profile
+  gpu 4.5COMPAT                OpenGL 4.5 Compatibility Profile
+  gpu 4.6COMPAT                OpenGL 4.6 Compatibility Profile
+  gpu 3.2CORE                  OpenGL 3.2 Core Profile
+  gpu 3.3CORE                  OpenGL 3.3 Core Profile
+  gpu 4.1CORE                  OpenGL 4.1 Core Profile
+  gpu 4.3CORE                  OpenGL 4.3 Core Profile
+  gpu 4.5CORE                  OpenGL 4.5 Core Profile
+  gpu 4.6CORE                  OpenGL 4.6 Core Profile
+
+  ── Configuration ──
+  gpu config=d3d / cfg=d3d     Enable Direct3D compatibility mode
+  gpu config=gl  / cfg=gl      Disable Direct3D mode (default)
+
+  ── Updates ──
+  gpu update-angle             Download & install latest ANGLE build
+  gpu update-renderer          Download & install latest virglrenderer
+  gpu update-virgl             Same as update-renderer
+
+  ── Run an app ──
+  gpu <app> [args...]          Start server (if needed) + run app
+                               with GPU acceleration enabled.
+
+  Examples:
+    gpu glxgears -info
+    gpu glmark2
+    gpu firefox
+    gpu 4.3COMPAT
+    gpu angle=vulkan
+    gpu info
+    gpu q
+HELP
+}
+
+# ===========================================================================
+#  MAIN — argument dispatch
+# ===========================================================================
+
 case "${1:-}" in
-    angle=*|use-*|config=*|cfg=*|update-*|2.1COMPAT|3.2COMPAT|3.3COMPAT|4.1COMPAT|4.3COMPAT)
-        exec "$VGL" "$@"
+    "")
+        # No args → start server
+        start_vgl_server
+        ;;
+
+    --help|-h)
+        vhelp
+        ;;
+
+    q)
+        kill_vgl_server
+        ;;
+
+    info)
+        show_info
+        ;;
+
+    angle=vulkan)
+        kill_vgl_server
+        rm -f "$HOME/.vgl-angle-gl"
+        touch "$HOME/.vgl-angle-vulkan"
+        rm -f "$HOME/.vgl-android"
+        start_vgl_server
+        ;;
+
+    angle=vulkan-null)
+        kill_vgl_server
+        rm -f "$HOME/.vgl-angle-vulkan" "$HOME/.vgl-angle-gl"
+        rm -f "$HOME/.vgl-android"
+        start_vgl_server
+        ;;
+
+    angle=gl)
+        kill_vgl_server
+        rm -f "$HOME/.vgl-angle-vulkan"
+        touch "$HOME/.vgl-angle-gl"
+        rm -f "$HOME/.vgl-android"
+        start_vgl_server
+        ;;
+
+    use-android)
+        kill_vgl_server
+        touch "$HOME/.vgl-android"
+        start_vgl_server
+        ;;
+
+    use-angle)
+        kill_vgl_server
+        rm -f "$HOME/.vgl-android"
+        start_vgl_server
+        ;;
+
+    2.1COMPAT|3.2COMPAT|3.3COMPAT|4.1COMPAT|4.3COMPAT|4.5COMPAT|4.6COMPAT| \
+    3.2CORE|3.3CORE|4.1CORE|4.3CORE|4.5CORE|4.6CORE)
+        set_profile "$1"
+        ;;
+
+    config=d3d|cfg=d3d)
+        touch "$HOME/.vgl-d3d"
+        echo "using d3d (Direct 3D) config."
+        ;;
+
+    config=gl|cfg=gl)
+        rm -f "$HOME/.vgl-d3d"
+        echo "using OpenGL/ES config."
+        ;;
+
+    update-angle)
+        echo "Updating angle-android..."
+        cd && rm -f "$HOME/angle-android_2.1.2-latest.deb"
+        wget -q --show-progress \
+            https://github.com/ar37-rs/virgl-angle/releases/download/latest/angle-android_2.1.2-latest.deb
+        kill_vgl_server
+        dpkg -i "$HOME/angle-android_2.1.2-latest.deb"
+        sleep 1
+        start_vgl_server
+        rm -f "$HOME/angle-android_2.1.2-latest.deb"
+        echo "done."
+        ;;
+
+    update-renderer|update-virgl)
+        echo "Updating virglrenderer..."
+        cd && rm -f "$HOME/virglrenderer_1.1.1-latest_aarch64.deb"
+        wget -q --show-progress \
+            https://github.com/ar37-rs/virgl-angle/releases/download/latest/virglrenderer_1.1.1-latest_aarch64.deb
+        dpkg -i "$HOME/virglrenderer_1.1.1-latest_aarch64.deb"
+        kill_vgl_server
+        sleep 1
+        start_vgl_server
+        rm -f "$HOME/virglrenderer_1.1.1-latest_aarch64.deb"
+        echo "done."
+        ;;
+
+    *)
+        # Run an app with GPU acceleration
+        if ! server_running; then
+            start_vgl_server
+        fi
+        apply_env
+
+        if [ -f "$HOME/.vgl-zink-xlib-compat" ]; then
+            LD_LIBRARY_PATH= exec "$@"
+        else
+            exec "$@"
+        fi
         ;;
 esac
-
-# --- No args: start server ---------------------------------------------
-if [ $# -eq 0 ]; then
-    echo "Starting virgl server (ANGLE → Vulkan)..."
-    exec "$VGL" angle=vulkan
-fi
-
-# --- Run a command with GPU --------------------------------------------
-# If server isn't running, auto-start it first
-if ! server_running; then
-    echo "Starting virgl server (ANGLE → Vulkan)..."
-    "$VGL" angle=vulkan
-    sleep 1
-    echo ""
-fi
-
-exec "$VGL" "$@"

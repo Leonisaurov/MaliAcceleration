@@ -227,28 +227,61 @@ echo ""
 # =========================================================================
 echo "${STEP} Step 3/5: Installing gpu wrapper..."
 
-if [ -f "$HOME/.local/bin/gpu" ]; then
-    echo "   ${OK} ~/.local/bin/gpu already installed"
+if [ -f "$REPO_DIR/config/gpu" ]; then
+    mkdir -p "$HOME/.local/bin"
+    cp "$REPO_DIR/config/gpu" "$HOME/.local/bin/gpu" && chmod +x "$HOME/.local/bin/gpu"
+    echo "${OK} ~/.local/bin/gpu installed from repo"
 else
-    if [ -f "$REPO_DIR/config/gpu" ]; then
-        mkdir -p "$HOME/.local/bin"
-        cp "$REPO_DIR/config/gpu" "$HOME/.local/bin/gpu" && chmod +x "$HOME/.local/bin/gpu"
-        echo "${OK} ~/.local/bin/gpu installed from repo"
-    else
-        # Create gpu wrapper directly
-        cat > "$HOME/.local/bin/gpu" << 'GPUSCRIPT'
+    # Fallback: create gpu wrapper that handles info properly
+    cat > "$HOME/.local/bin/gpu" << 'GPUSCRIPT'
 #!/data/data/com.termux/files/usr/bin/bash
-VGL="${HOME}/vgl"
+# gpu — fallback wrapper
+if [ -f "$HOME/vgl" ]; then
+    VGL="$HOME/vgl"
+else
+    echo "ERROR: No GPU acceleration script found." >&2
+    echo "  Run setup.sh or install manually." >&2
+    exit 1
+fi
 case "${1:-}" in
     --help|-h)
         echo "Usage: gpu [command]"
         echo "  gpu              Start virgl server (ANGLE → Vulkan)"
         echo "  gpu <app>        Run app with GPU acceleration"
+        echo "  gpu info         Show acceleration status"
         echo "  gpu q            Kill server"
+        echo "  gpu <profile>    Set GL profile (2.1COMPAT, 3.2COMPAT, ...)"
+        exit 0
+        ;;
+    info)
+        # If the new self-sufficient gpu is available, use it
+        if command -v gpu-selfsufficient >/dev/null 2>&1; then
+            exec gpu-selfsufficient info
+        fi
+        echo "GPU Acceleration Status (basic)" >&2
+        echo "  Install the full script from config/gpu in the repo for 'gpu info'." >&2
+        echo "  For now, check if server is running:" >&2
+        if pgrep -f virgl_test_server >/dev/null 2>&1; then
+            echo "  Server: running"
+        else
+            echo "  Server: stopped"
+        fi
+        echo "  Run 'DISPLAY=:1 glxinfo -B | grep -E \"renderer|version\"' for renderer info" >&2
+        echo "  Install mesa-utils: pkg install mesa-utils" >&2
         exit 0
         ;;
     q) exec "$VGL" q ;;
-    "") echo "Starting virgl server..."; exec "$VGL" angle=vulkan ;;
+    "")
+        echo "Starting virgl server..."
+        if [ -f "$HOME/.vgl-android" ]; then
+            exec "$VGL" use-android
+        else
+            exec "$VGL" angle=vulkan
+        fi
+        ;;
+    2.1COMPAT|3.2COMPAT|3.3COMPAT|4.1COMPAT|4.3COMPAT|4.5COMPAT|4.6COMPAT|3.2CORE|3.3CORE|4.1CORE|4.3CORE|4.5CORE|4.6CORE|angle=*|use-*|config=*|cfg=*|update-*)
+        exec "$VGL" "$@"
+        ;;
     *)
         if ! pgrep -f virgl_test_server >/dev/null 2>&1; then
             echo "Starting virgl server..."; "$VGL" angle=vulkan; sleep 1
@@ -257,9 +290,8 @@ case "${1:-}" in
         ;;
 esac
 GPUSCRIPT
-        chmod +x "$HOME/.local/bin/gpu"
-        echo "${OK} ~/.local/bin/gpu created directly"
-    fi
+    chmod +x "$HOME/.local/bin/gpu"
+    echo "${OK} ~/.local/bin/gpu created directly"
 fi
 
 echo ""
