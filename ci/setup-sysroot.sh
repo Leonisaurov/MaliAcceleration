@@ -111,7 +111,7 @@ echo "=== Sysroot ready ==="
 echo "Location: $SYSROOT_DIR"
 echo ""
 echo "Pkg-config files (*.pc):"
-find "$SYSROOT_DIR" -name "*.pc" -path "*/pkgconfig/*" 2>/dev/null | head -20 | sed 's|.*/data|  /data|'
+find "$SYSROOT_DIR" -name "*.pc" -path "*/pkgconfig/*" 2>/dev/null | head -20 | sed 's|.*/data|  /data|' || true
 echo ""
 echo "Libraries (*.so):"
-find "$SYSROOT_DIR" -name "*.so" 2>/dev/null | head -10 | sed 's|.*/data|  /data|'
+find "$SYSROOT_DIR" -name "*.so" 2>/dev/null | head -10 | sed 's|.*/data|  /data|' || true
