@@ -154,6 +154,74 @@ static inline int property_set(const char *key, const char *value) {
 CUTILSHEADER
 fi
 
+# --- pthread_barrier_t compat (removed in NDK r27) -------------------
+if [ ! -f "$NDK_SYSROOT/usr/include/pthread_barrier_compat.h" ]; then
+    echo "Creating pthread_barrier_compat.h (removed in NDK r27)"
+    cat > "$NDK_SYSROOT/usr/include/pthread_barrier_compat.h" << 'PTHREADBARRIER'
+#ifndef _PTHREAD_BARRIER_COMPAT_H_
+#define _PTHREAD_BARRIER_COMPAT_H_
+
+#include <pthread.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef struct {
+    pthread_mutex_t mutex;
+    pthread_cond_t cond;
+    int count;
+    int threshold;
+    int cycle;
+} pthread_barrier_t;
+
+typedef int pthread_barrierattr_t;
+
+static inline int pthread_barrier_init(pthread_barrier_t *barrier,
+                                       const pthread_barrierattr_t *attr,
+                                       unsigned count) {
+    (void)attr;
+    if (count == 0) return EINVAL;
+    pthread_mutex_init(&barrier->mutex, NULL);
+    pthread_cond_init(&barrier->cond, NULL);
+    barrier->threshold = (int)count;
+    barrier->count = 0;
+    barrier->cycle = 0;
+    return 0;
+}
+
+static inline int pthread_barrier_destroy(pthread_barrier_t *barrier) {
+    pthread_mutex_destroy(&barrier->mutex);
+    pthread_cond_destroy(&barrier->cond);
+    return 0;
+}
+
+static inline int pthread_barrier_wait(pthread_barrier_t *barrier) {
+    pthread_mutex_lock(&barrier->mutex);
+    int my_cycle = barrier->cycle;
+    barrier->count++;
+    if (barrier->count == barrier->threshold) {
+        barrier->count = 0;
+        barrier->cycle++;
+        pthread_cond_broadcast(&barrier->cond);
+        pthread_mutex_unlock(&barrier->mutex);
+        return 1; /* PTHREAD_BARRIER_SERIAL_THREAD */
+    }
+    while (barrier->cycle == my_cycle) {
+        pthread_cond_wait(&barrier->cond, &barrier->mutex);
+    }
+    pthread_mutex_unlock(&barrier->mutex);
+    return 0;
+}
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* _PTHREAD_BARRIER_COMPAT_H_ */
+PTHREADBARRIER
+fi
+
 # --- Meson cross-compile ------------------------------------------------
 if [ ! -d "build/meson-info" ]; then
     echo "Configuring with meson (cross-compile)..."
@@ -189,7 +257,7 @@ if [ ! -d "build/meson-info" ]; then
     # added by pkg-config through meson.
     NDK_SYSROOT="$NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
     
-    CFLAGS="-isystem $NDK_SYSROOT/usr/include -O2 -Wno-error=gnu-offsetof-extensions" \
+    CFLAGS="-include $NDK_SYSROOT/usr/include/pthread_barrier_compat.h -isystem $NDK_SYSROOT/usr/include -O2 -Wno-error=gnu-offsetof-extensions" \
     LDFLAGS="" \
     PKG_CONFIG_LIBDIR="$PKG_CONFIG_LIBDIR" \
     PKG_CONFIG_SYSROOT_DIR="$PKG_CONFIG_SYSROOT_DIR" \
