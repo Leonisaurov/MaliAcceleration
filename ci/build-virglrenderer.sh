@@ -114,14 +114,11 @@ if [ ! -d "build/meson-info" ]; then
         echo "  pkg-config epoxy: OK ($(pkg-config --modversion epoxy))"
     fi
     
-    # NOTE: Do NOT set --sysroot here. The NDK clang wrapper
-    # (aarch64-linux-android21-clang) already sets --sysroot internally
-    # to its own NDK sysroot which provides crt*.o, libc.so, libdl.so, etc.
-    # Overriding it with the Termux sysroot breaks the linker.
-    # Termux headers/libraries are found via PKG_CONFIG_SYSROOT_DIR and -I/-L
-    # added by pkg-config through meson.
-    CFLAGS="-O2 -Wno-error=gnu-offsetof-extensions" \
-    LDFLAGS="" \
+    # NDK sysroot for Android native headers (log/log.h, etc.)
+    NDK_SYSROOT="$NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
+    
+    CFLAGS="--sysroot=$SYSROOT_DIR -isystem $NDK_SYSROOT/usr/include -O2 -Wno-error=gnu-offsetof-extensions" \
+    LDFLAGS="--sysroot=$SYSROOT_DIR" \
     PKG_CONFIG_LIBDIR="$PKG_CONFIG_LIBDIR" \
     PKG_CONFIG_SYSROOT_DIR="$PKG_CONFIG_SYSROOT_DIR" \
     meson setup build \
@@ -132,19 +129,19 @@ if [ ! -d "build/meson-info" ]; then
         -Dstrip=true \
         --prefix /data/data/com.termux/files/usr \
         --libdir /data/data/com.termux/files/usr/lib \
-        2>&1 | tail -30
+        2>&1
 fi
 
 # --- Compile -----------------------------------------------------------
 echo "Compiling (${NINJA_JOBS} jobs)..."
-ninja -C build -j${NINJA_JOBS} 2>&1 | tail -10
+ninja -C build -j${NINJA_JOBS} 2>&1
 
 echo "Compilation successful."
 
 # --- Install to pkgdir -------------------------------------------------
 PKGDIR="$BUILD_BASE/pkg"
 rm -rf "$PKGDIR"
-DESTDIR="$PKGDIR" ninja -C build install 2>&1 | tail -5
+DESTDIR="$PKGDIR" ninja -C build install 2>&1
 
 # Verify
 if [ -z "$(ls -A "$PKGDIR" 2>/dev/null)" ]; then
