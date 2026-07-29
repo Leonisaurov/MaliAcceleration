@@ -115,10 +115,16 @@ if [ ! -d "build/meson-info" ]; then
     fi
     
     # NDK sysroot for Android native headers (log/log.h, etc.)
+    # NOTE: Do NOT add --sysroot here. The NDK clang wrapper
+    # (aarch64-linux-android21-clang) already sets --sysroot internally
+    # to its own NDK sysroot which provides crt*.o, libdl.so, libc.so, etc.
+    # Overriding it with the Termux sysroot breaks the linker.
+    # Termux headers/libraries are found via PKG_CONFIG_SYSROOT_DIR and -I/-L
+    # added by pkg-config through meson.
     NDK_SYSROOT="$NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
     
-    CFLAGS="--sysroot=$SYSROOT_DIR -isystem $NDK_SYSROOT/usr/include -O2 -Wno-error=gnu-offsetof-extensions" \
-    LDFLAGS="--sysroot=$SYSROOT_DIR" \
+    CFLAGS="-isystem $NDK_SYSROOT/usr/include -O2 -Wno-error=gnu-offsetof-extensions" \
+    LDFLAGS="" \
     PKG_CONFIG_LIBDIR="$PKG_CONFIG_LIBDIR" \
     PKG_CONFIG_SYSROOT_DIR="$PKG_CONFIG_SYSROOT_DIR" \
     meson setup build \
