@@ -69,6 +69,14 @@ echo "Version: $VERSION"
 echo "Output:  $OUTPUT_FILE"
 echo ""
 
+# --- Patch NDK r27 hardware_buffer.h (1UL << 32 bug on ARM32) ---------
+HWBUF="$NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/android/hardware_buffer.h"
+if [ -f "$HWBUF" ] && grep -q "1UL << 32" "$HWBUF" 2>/dev/null; then
+    echo "Patching NDK hardware_buffer.h (1UL -> 1ULL for ARM32 compat)..."
+    sed -i 's/1UL << 32/1ULL << 32/g' "$HWBUF"
+    echo "  Patched: $(grep -c "1ULL << 32" "$HWBUF") occurrence(s)"
+fi
+
 # --- Detect Android NDK path for GN ------------------------------------
 # GN needs android_ndk_root pointing to the NDK
 # The NDK directory from setup-ndk action is typically:
