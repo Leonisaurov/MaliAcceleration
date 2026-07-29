@@ -114,8 +114,14 @@ if [ ! -d "build/meson-info" ]; then
         echo "  pkg-config epoxy: OK ($(pkg-config --modversion epoxy))"
     fi
     
-    CFLAGS="--sysroot=$SYSROOT_DIR -O2 -Wno-error=gnu-offsetof-extensions" \
-    LDFLAGS="--sysroot=$SYSROOT_DIR" \
+    # NOTE: Do NOT set --sysroot here. The NDK clang wrapper
+    # (aarch64-linux-android21-clang) already sets --sysroot internally
+    # to its own NDK sysroot which provides crt*.o, libc.so, libdl.so, etc.
+    # Overriding it with the Termux sysroot breaks the linker.
+    # Termux headers/libraries are found via PKG_CONFIG_SYSROOT_DIR and -I/-L
+    # added by pkg-config through meson.
+    CFLAGS="-O2 -Wno-error=gnu-offsetof-extensions" \
+    LDFLAGS="" \
     PKG_CONFIG_LIBDIR="$PKG_CONFIG_LIBDIR" \
     PKG_CONFIG_SYSROOT_DIR="$PKG_CONFIG_SYSROOT_DIR" \
     meson setup build \
