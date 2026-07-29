@@ -116,6 +116,39 @@ if [ ! -f "$NDK_SYSROOT/usr/include/log/log.h" ]; then
 LOGHEADER
 fi
 
+# --- Ensure Android cutils/properties.h exists (NDK r27+ removed it) ---
+if [ ! -f "$SYSROOT_DIR/data/data/com.termux/files/usr/include/cutils/properties.h" ] \
+   && [ ! -f "$NDK_SYSROOT/usr/include/cutils/properties.h" ]; then
+    echo "Creating stub for cutils/properties.h (not provided by NDK r27)"
+    mkdir -p "$NDK_SYSROOT/usr/include/cutils"
+    cat > "$NDK_SYSROOT/usr/include/cutils/properties.h" << 'CUTILSHEADER'
+#ifndef _CUTILS_PROPERTIES_H_
+#define _CUTILS_PROPERTIES_H_
+
+#include <string.h>
+
+#define PROPERTY_VALUE_MAX 128
+
+static inline int property_get(const char *key, char *value, const char *default_value) {
+    if (default_value) {
+        strncpy(value, default_value, PROPERTY_VALUE_MAX - 1);
+        value[PROPERTY_VALUE_MAX - 1] = '\0';
+    } else if (value) {
+        value[0] = '\0';
+    }
+    return 0;
+}
+
+static inline int property_set(const char *key, const char *value) {
+    (void)key;
+    (void)value;
+    return 0;
+}
+
+#endif
+CUTILSHEADER
+fi
+
 # --- Meson cross-compile ------------------------------------------------
 if [ ! -d "build/meson-info" ]; then
     echo "Configuring with meson (cross-compile)..."
