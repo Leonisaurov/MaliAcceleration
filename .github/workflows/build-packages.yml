@@ -82,9 +82,79 @@ jobs:
           path: packages/mesa-vulkan-icd-wrapper*.pkg.tar.xz
           if-no-files-found: error
 
+  build-angle:
+    name: Build angle-android
+    runs-on: ubuntu-latest
+    env:
+      ANGLE_COMMIT: f09a19cebdaf04bddcd3101e9783207cb5cf3e13
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build python3 python3-pip wget xz-utils
+          pip3 install httplib2
+
+      - name: Setup Android NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: ${{ env.NDK_VERSION }}
+          add-to-path: false
+          local-cache: true
+
+      - name: Cache depot_tools
+        id: cache-depot
+        uses: actions/cache@v4
+        with:
+          path: .depot_tools
+          key: depot-tools-${{ runner.os }}
+
+      - name: Install depot_tools
+        if: steps.cache-depot.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth=1 https://chromium.googlesource.com/chromium/tools/depot_tools.git .depot_tools
+
+      - name: Add depot_tools to PATH
+        run: echo "$PWD/.depot_tools" >> $GITHUB_PATH
+
+      - name: Cache ANGLE source
+        id: cache-angle
+        uses: actions/cache@v4
+        with:
+          path: .angle-source
+          key: angle-source-${{ env.ANGLE_COMMIT }}-${{ runner.os }}
+
+      - name: Fetch ANGLE source
+        if: steps.cache-angle.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p .angle-source
+          cd .angle-source
+          gclient config --unmanaged https://chromium.googlesource.com/angle/angle
+          echo 'target_os = ["android"]' >> .gclient
+          gclient sync --no-history --revision ${{ env.ANGLE_COMMIT }}
+          # Verify commit position
+          cd angle
+          echo "ANGLE commit position: $(git rev-list HEAD --count)"
+
+      - name: Build ANGLE
+        run: |
+          chmod +x ci/build-angle.sh
+          ANGLE_SRC_DIR="$PWD/.angle-source/angle" \
+            NDK_DIR="$ANDROID_NDK_ROOT" \
+            NINJA_JOBS=2 \
+            ./ci/build-angle.sh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: angle-pkg
+          path: packages/angle-android*.pkg.tar.xz
+          if-no-files-found: error
+
   create-release:
     name: Create Release
-    needs: [build-virglrenderer, build-icd-wrapper]
+    needs: [build-virglrenderer, build-icd-wrapper, build-angle]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -116,6 +186,7 @@ jobs:
             ## CI Build Packages
 
             - virglrenderer: built from source (freedesktop.org)
+            - angle-android: built from source (Google ANGLE)
             - mesa-vulkan-icd-wrapper: auto-generated
 
             Install:
