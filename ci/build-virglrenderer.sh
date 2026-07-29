@@ -88,6 +88,28 @@ echo "=== Debug: Checking for gl.pc (from mesa) ==="
 find "$SYSROOT_DIR" -name "gl.pc" 2>/dev/null | head -5 || true
 echo ""
 
+# --- Ensure Android log/log.h exists (NDK r27+ removed it) ------------
+if [ ! -f "$SYSROOT_DIR/data/data/com.termux/files/usr/include/log/log.h" ]; then
+    echo "Creating stub for log/log.h (not provided by NDK r27)"
+    mkdir -p "$SYSROOT_DIR/data/data/com.termux/files/usr/include/log"
+    cat > "$SYSROOT_DIR/data/data/com.termux/files/usr/include/log/log.h" << 'LOGHEADER'
+#ifndef _ANDROID_LOG_LOG_H_
+#define _ANDROID_LOG_LOG_H_
+
+#include <stdio.h>
+
+#define ANDROID_LOG_DEBUG   3
+#define ANDROID_LOG_INFO    4
+#define ANDROID_LOG_WARN    5
+#define ANDROID_LOG_ERROR   6
+
+#define __android_log_print(prio, tag, fmt, ...) \
+    fprintf(stderr, "[" tag "] " fmt "\n", ##__VA_ARGS__)
+
+#endif
+LOGHEADER
+fi
+
 # --- Meson cross-compile ------------------------------------------------
 if [ ! -d "build/meson-info" ]; then
     echo "Configuring with meson (cross-compile)..."
