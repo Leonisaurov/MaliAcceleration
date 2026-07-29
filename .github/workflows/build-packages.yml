@@ -35,40 +35,9 @@ jobs:
 
       - name: Setup Termux sysroot (dependencies)
         run: |
-          mkdir -p .build/sysroot
-          cd .build/sysroot
-
-          # Download and extract Termux dependency .debs
-          # libdrm
-          wget -q -c https://packages.termux.dev/apt/termux-main/pool/main/libd/libdrm/libdrm_2.4.124_aarch64.deb -O libdrm.deb
-          dpkg-deb -x libdrm.deb . 2>/dev/null || ar p libdrm.deb data.tar.xz | tar -xJ 2>/dev/null
-
-          # libepoxy
-          wget -q -c https://packages.termux.dev/apt/termux-main/pool/main/libe/libepoxy/libepoxy_1.5.10-1_aarch64.deb -O libepoxy.deb
-          dpkg-deb -x libepoxy.deb . 2>/dev/null || ar p libepoxy.deb data.tar.xz | tar -xJ 2>/dev/null
-
-          # libglvnd
-          wget -q -c https://packages.termux.dev/apt/termux-main/pool/main/libg/libglvnd/libglvnd_1.7.0-1_aarch64.deb -O libglvnd.deb
-          dpkg-deb -x libglvnd.deb . 2>/dev/null || ar p libglvnd.deb data.tar.xz | tar -xJ 2>/dev/null
-
-          # libx11
-          wget -q -c https://packages.termux.dev/apt/termux-main/pool/main/libx/libx11/libx11_1.8.10_aarch64.deb -O libx11.deb
-          dpkg-deb -x libx11.deb . 2>/dev/null || ar p libx11.deb data.tar.xz | tar -xJ 2>/dev/null
-
-          # mesa (big package)
-          wget -q -c https://packages.termux.dev/apt/termux-main/pool/main/m/mesa/mesa_26.0.6-3_aarch64.deb -O mesa.deb
-          dpkg-deb -x mesa.deb . 2>/dev/null || ar p mesa.deb data.tar.xz | tar -xJ 2>/dev/null
-
-          # libxcb (dependency)
-          wget -q -c https://packages.termux.dev/apt/termux-main/pool/main/libx/libxcb/libxcb_1.17.0_aarch64.deb -O libxcb.deb
-          dpkg-deb -x libxcb.deb . 2>/dev/null || ar p libxcb.deb data.tar.xz | tar -xJ 2>/dev/null
-
-          # xorgproto (build dep)
-          wget -q -c https://packages.termux.dev/apt/termux-main/pool/main/x/xorgproto/xorgproto_2024.5-1_all.deb -O xorgproto.deb
-          dpkg-deb -x xorgproto.deb . 2>/dev/null || ar p xorgproto.deb data.tar.xz | tar -xJ 2>/dev/null
-
-          echo "Sysroot ready"
-          find . -name "*.pc" -path "*/pkgconfig/*" 2>/dev/null | head -10
+          chmod +x ci/setup-sysroot.sh
+          ./ci/setup-sysroot.sh "$PWD/.build/sysroot"
+        shell: bash
 
       - name: Build virglrenderer
         run: |
