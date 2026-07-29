@@ -68,18 +68,56 @@ fi
 
 cd "$SOURCE_DIR"
 
+# --- Debug: check sysroot contents --------------------------------------
+echo "=== Debug: Sysroot pkg-config files ==="
+find "$SYSROOT_DIR" -name "*.pc" 2>/dev/null | head -30 | sort
+echo ""
+
+echo "=== Debug: Checking for epoxy.pc ==="
+if [ -f "$SYSROOT_DIR/data/data/com.termux/files/usr/lib/pkgconfig/epoxy.pc" ]; then
+    echo "  epoxy.pc FOUND"
+    cat "$SYSROOT_DIR/data/data/com.termux/files/usr/lib/pkgconfig/epoxy.pc" | head -10
+else
+    echo "  epoxy.pc NOT FOUND at expected path"
+    # Search for it anywhere in sysroot
+    find "$SYSROOT_DIR" -name "epoxy*" 2>/dev/null | head -10
+fi
+echo ""
+
+echo "=== Debug: Checking for gl.pc (from mesa) ==="
+find "$SYSROOT_DIR" -name "gl.pc" 2>/dev/null | head -5
+echo ""
+
 # --- Meson cross-compile ------------------------------------------------
 if [ ! -d "build/meson-info" ]; then
     echo "Configuring with meson (cross-compile)..."
     rm -rf build 2>/dev/null
-
+    
     # Set up pkg-config for cross
-    export PKG_CONFIG_LIBDIR="$SYSROOT_DIR/data/data/com.termux/files/usr/lib/pkgconfig:$SYSROOT_DIR/data/data/com.termux/files/usr/share/pkgconfig"
+    export PKG_CONFIG_LIBDIR="$SYSROOT_DIR/data/data/com.termux/files/usr/lib/pkgconfig"
     export PKG_CONFIG_SYSROOT_DIR="$SYSROOT_DIR"
     export PKG_CONFIG_PATH=""
-
+    # Ensure meson uses our cross pkg-config
+    export PKG_CONFIG="pkg-config"
+    
+    echo "  PKG_CONFIG_LIBDIR=$PKG_CONFIG_LIBDIR"
+    echo "  PKG_CONFIG_SYSROOT_DIR=$PKG_CONFIG_SYSROOT_DIR"
+    echo ""
+    
+    # Test pkg-config can find epoxy
+    if ! pkg-config --exists epoxy; then
+        echo "WARNING: pkg-config cannot find epoxy. Check sysroot."
+        pkg-config --variable=pcfiledir epoxy 2>&1 || true
+        echo "  Available epoxy-related .pc files:"
+        find "$PKG_CONFIG_LIBDIR" -name "*epoxy*" -o -name "*gl*" 2>/dev/null | head -10
+    else
+        echo "  pkg-config epoxy: OK ($(pkg-config --modversion epoxy))"
+    fi
+    
     CFLAGS="--sysroot=$SYSROOT_DIR -O2 -Wno-error=gnu-offsetof-extensions" \
     LDFLAGS="--sysroot=$SYSROOT_DIR" \
+    PKG_CONFIG_LIBDIR="$PKG_CONFIG_LIBDIR" \
+    PKG_CONFIG_SYSROOT_DIR="$PKG_CONFIG_SYSROOT_DIR" \
     meson setup build \
         --cross-file "$CROSS_FILE" \
         -Dplatforms=egl,glx \
@@ -88,7 +126,7 @@ if [ ! -d "build/meson-info" ]; then
         -Dstrip=true \
         --prefix /data/data/com.termux/files/usr \
         --libdir /data/data/com.termux/files/usr/lib \
-        2>&1 | tail -20
+        2>&1 | tail -30
 fi
 
 # --- Compile -----------------------------------------------------------
