@@ -3,7 +3,8 @@
 #  build-angle.sh  —  Cross-compile ANGLE for Termux aarch64 in CI
 # =============================================================================
 #  Compiles Google ANGLE from source with GN/Ninja targeting Android aarch64.
-#  Produces a .pkg.tar.xz for three backends: gl, vulkan, vulkan-null.
+#  Produces a .pkg.tar.xz for two backends: vulkan, vulkan-null (gl excluded:
+#  broken on Mali + bug in NDK r27 ARM32).
 #
 #  Usage:  ./ci/build-angle.sh
 #
@@ -78,13 +79,14 @@ echo "Using NDK at: $NDK_DIR"
 declare -A CONFIGS
 CONFIGS["vulkan"]="angle_enable_gl=false angle_enable_vulkan=true angle_use_vulkan_null_display=false"
 CONFIGS["vulkan-null"]="angle_enable_gl=false angle_enable_vulkan=true angle_use_vulkan_null_display=true"
-CONFIGS["gl"]="angle_enable_gl=true angle_enable_vulkan=false angle_use_vulkan_null_display=false"
+# gl backend disabled: broken on Mali GPUs, also fails in NDK r27 (ARM32 bug)
+# CONFIGS["gl"]="angle_enable_gl=true angle_enable_vulkan=false angle_use_vulkan_null_display=false"
 
 # --- PKG_DIR for staging installation ----------------------------------
 PKG_DIR="$BUILD_BASE/pkg"
 rm -rf "$PKG_DIR"
 
-for variant in gl vulkan vulkan-null; do
+for variant in vulkan vulkan-null; do
     echo ""
     echo "========================================================================"
     echo "  Building ANGLE backend: $variant"
