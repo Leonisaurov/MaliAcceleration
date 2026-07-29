@@ -89,10 +89,16 @@ find "$SYSROOT_DIR" -name "gl.pc" 2>/dev/null | head -5 || true
 echo ""
 
 # --- Ensure Android log/log.h exists (NDK r27+ removed it) ------------
-if [ ! -f "$SYSROOT_DIR/data/data/com.termux/files/usr/include/log/log.h" ]; then
+# The NDK clang (aarch64-linux-android21-clang) has its own --sysroot
+# pointing to $NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64/sysroot.
+# NDK r27 removed <log/log.h> from there. We restore a minimal stub
+# directly into the NDK sysroot so the compiler finds it via its
+# built-in include path (no extra -I needed).
+NDK_SYSROOT="$NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
+if [ ! -f "$NDK_SYSROOT/usr/include/log/log.h" ]; then
     echo "Creating stub for log/log.h (not provided by NDK r27)"
-    mkdir -p "$SYSROOT_DIR/data/data/com.termux/files/usr/include/log"
-    cat > "$SYSROOT_DIR/data/data/com.termux/files/usr/include/log/log.h" << 'LOGHEADER'
+    mkdir -p "$NDK_SYSROOT/usr/include/log"
+    cat > "$NDK_SYSROOT/usr/include/log/log.h" << 'LOGHEADER'
 #ifndef _ANDROID_LOG_LOG_H_
 #define _ANDROID_LOG_LOG_H_
 
