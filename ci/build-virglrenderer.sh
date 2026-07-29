@@ -104,13 +104,17 @@ if [ ! -f "$NDK_SYSROOT/usr/include/log/log.h" ]; then
 
 #include <stdio.h>
 
-#define ANDROID_LOG_DEBUG   3
-#define ANDROID_LOG_INFO    4
-#define ANDROID_LOG_WARN    5
-#define ANDROID_LOG_ERROR   6
+#define ANDROID_LOG_UNKNOWN   0
+#define ANDROID_LOG_DEBUG     3
+#define ANDROID_LOG_INFO      4
+#define ANDROID_LOG_WARN      5
+#define ANDROID_LOG_ERROR     6
 
 #define __android_log_print(prio, tag, fmt, ...) \
     fprintf(stderr, "[" tag "] " fmt "\n", ##__VA_ARGS__)
+
+#define LOG_PRI(priority, tag, fmt, ...) \
+    __android_log_print(priority, tag, fmt, ##__VA_ARGS__)
 
 #endif
 LOGHEADER
@@ -127,6 +131,7 @@ if [ ! -f "$SYSROOT_DIR/data/data/com.termux/files/usr/include/cutils/properties
 
 #include <string.h>
 
+#define PROPERTY_KEY_MAX   32
 #define PROPERTY_VALUE_MAX 128
 
 static inline int property_get(const char *key, char *value, const char *default_value) {
