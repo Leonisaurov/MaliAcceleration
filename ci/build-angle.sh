@@ -52,24 +52,25 @@ echo ""
 HWBUF="$NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/android/hardware_buffer.h"
 if [ -f "$HWBUF" ] && grep -q "1UL << 32" "$HWBUF" 2>/dev/null; then
     echo "Patching NDK hardware_buffer.h (1UL -> 1ULL for ARM32 compat)..."
+    # NDK from cache may be read-only; ensure writable before sed -i
+    chmod +w "$HWBUF"
     sed -i 's/1UL << 32/1ULL << 32/g' "$HWBUF"
 fi
 
 # 2. libnativewindow: NDK r27 moved it, create symlink if needed
 NATIVE_WINDOW_LIB="$NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libnativewindow.so"
 if [ ! -f "$NATIVE_WINDOW_LIB" ]; then
-    # Search for it in NDK
-    FOUND=$(find "$NDK_DIR" -name "libnativewindow*" 2>/dev/null | head -1)
+    # Search for it in NDK (use find -quit to avoid pipefail SIGPIPE)
+    FOUND=$(find "$NDK_DIR" -name "libnativewindow*" -print -quit 2>/dev/null || true)
     if [ -n "$FOUND" ]; then
         echo "Creating symlink for libnativewindow: $FOUND"
         mkdir -p "$(dirname "$NATIVE_WINDOW_LIB")"
         ln -sf "$FOUND" "$NATIVE_WINDOW_LIB"
     else
         # Try to find for ARM32 as well
-        FOUND32=$(find "$NDK_DIR" -name "libnativewindow*" -path "*/arm*" 2>/dev/null | head -1)
+        FOUND32=$(find "$NDK_DIR" -name "libnativewindow*" -path "*/arm*" -print -quit 2>/dev/null || true)
         if [ -n "$FOUND32" ]; then
             echo "Creating symlinks for libnativewindow..."
-            # Use the found file as reference
             mkdir -p "$(dirname "$NATIVE_WINDOW_LIB")"
             ln -sf "$FOUND32" "$NATIVE_WINDOW_LIB"
         fi
