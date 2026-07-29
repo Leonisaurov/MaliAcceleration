@@ -286,6 +286,7 @@ if [ ! -d "build/meson-info" ]; then
         -Dvenus=true \
         -Dbuildtype=release \
         -Dstrip=true \
+        -Db_lundef=false \
         --prefix /data/data/com.termux/files/usr \
         --libdir /data/data/com.termux/files/usr/lib \
         2>&1
