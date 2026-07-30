@@ -214,6 +214,21 @@ pacman -U *.pkg.tar.xz  # install them
 
 ---
 
+## CI/CD — Build Automatizado
+
+Este repo tiene un pipeline de GitHub Actions (en desarrollo) que compila desde source todos los paquetes necesarios:
+
+- **virglrenderer** 1.3.0 desde freedesktop.org
+- **angle-android** desde Google ANGLE (último commit)
+- **mesa-vulkan-icd-wrapper** generado automáticamente
+
+Los builds producen `.pkg.tar.xz` listos para `pacman -U`.
+
+➡️ [Documentación completa del CI](docs/CI.md)
+➡️ [Releases](https://github.com/Leonisaurov/MaliAcceleration/releases)
+
+---
+
 ## Credits
 
 - [**ar37-rs/virgl-angle**](https://github.com/ar37-rs/virgl-angle) - the `vgl`

@@ -86,7 +86,7 @@ jobs:
     name: Build angle-android
     runs-on: ubuntu-latest
     env:
-      ANGLE_COMMIT: f09a19cebdaf04bddcd3101e9783207cb5cf3e13
+      ANGLE_COMMIT: 22ba45a57477342698df834a7b2df7a54ac0df34
     steps:
       - uses: actions/checkout@v4
 
