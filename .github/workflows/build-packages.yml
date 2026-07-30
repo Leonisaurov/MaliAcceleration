@@ -118,12 +118,14 @@ jobs:
       - name: Add depot_tools to PATH
         run: echo "$PWD/.depot_tools" >> $GITHUB_PATH
 
-      - name: Cache ANGLE source
+      - name: Cache ANGLE source + build output
         id: cache-angle
         uses: actions/cache@v4
         with:
           path: .angle-source
-          key: angle-source-${{ env.ANGLE_COMMIT }}-${{ runner.os }}
+          key: angle-source-${{ env.ANGLE_COMMIT }}-${{ runner.os }}-v2
+          restore-keys: |
+            angle-source-${{ env.ANGLE_COMMIT }}-${{ runner.os }}-
 
       - name: Fetch ANGLE source
         if: steps.cache-angle.outputs.cache-hit != 'true'
