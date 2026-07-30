@@ -725,7 +725,7 @@ case "${1:-}" in
         if gh_release_download "angle-android*.pkg.tar.xz" "$HOME"; then
             PKG_FILE=$(ls "$HOME"/angle-android*.pkg.tar.xz 2>/dev/null | head -1)
             if [ -n "$PKG_FILE" ]; then
-                pacman -U --noconfirm "$PKG_FILE"
+                pacman -U --noconfirm --overwrite='*' "$PKG_FILE"
                 rm -f "$PKG_FILE"
                 echo "angle-android updated."
             fi
@@ -741,7 +741,7 @@ case "${1:-}" in
         if gh_release_download "virglrenderer*.pkg.tar.xz" "$HOME"; then
             PKG_FILE=$(ls "$HOME"/virglrenderer*.pkg.tar.xz 2>/dev/null | head -1)
             if [ -n "$PKG_FILE" ]; then
-                pacman -U --noconfirm "$PKG_FILE"
+                pacman -U --noconfirm --overwrite='*' "$PKG_FILE"
                 rm -f "$PKG_FILE"
                 echo "virglrenderer updated."
             fi
@@ -756,7 +756,7 @@ case "${1:-}" in
         if gh_release_download "mesa-vulkan-icd-wrapper*.pkg.tar.xz" "$HOME"; then
             PKG_FILE=$(ls "$HOME"/mesa-vulkan-icd-wrapper*.pkg.tar.xz 2>/dev/null | head -1)
             if [ -n "$PKG_FILE" ]; then
-                pacman -U --noconfirm "$PKG_FILE"
+                pacman -U --noconfirm --overwrite='*' "$PKG_FILE"
                 rm -f "$PKG_FILE"
                 echo "ICD wrapper updated."
             fi
