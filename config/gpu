@@ -19,9 +19,11 @@
 #    gpu <profile>                Set GL profile (e.g. 4.3COMPAT)
 #    gpu config=d3d / cfg=d3d     Enable D3D compat mode
 #    gpu config=gl / cfg=gl       Disable D3D compat mode
-#    gpu update-angle             Update ANGLE build
-#    gpu update-renderer          Update virglrenderer
+#    gpu update-angle             Update ANGLE build (CI pacman pkg)
+#    gpu update-renderer          Update virglrenderer (CI pacman pkg)
 #    gpu update-virgl             Same as update-renderer
+#    gpu update-icd               Update mesa-vulkan-icd-wrapper (CI pacman pkg)
+#    gpu update-all               Update all GPU packages from CI
 #
 #  Profiles:
 #    2.1COMPAT  3.2COMPAT  3.3COMPAT  4.1COMPAT (default)
@@ -34,6 +36,9 @@
 PREFIX="${PREFIX:-/data/data/com.termux/files/usr}"
 HOME="${HOME:-/data/data/com.termux/files/home}"
 ANGLE_BASE="$PREFIX/opt/angle-android"
+
+# --- GitHub repo for updates (CI builds) --------------------------------
+GITHUB_REPO="Leonisaurov/MaliAcceleration"
 
 # ===========================================================================
 #  FUNCTIONS
@@ -333,6 +338,44 @@ ensure_angle_symlinks() {
 }
 
 # ------------------------------------------------------------------
+#  detect_pkgmgr  —  detect the system package manager
+# ------------------------------------------------------------------
+detect_pkgmgr() {
+    if command -v pacman >/dev/null 2>&1; then
+        echo "pacman"
+    elif command -v apt >/dev/null 2>&1; then
+        echo "apt"
+    elif command -v pkg >/dev/null 2>&1; then
+        echo "apt"  # pkg is a frontend for apt in Termux
+    else
+        echo "unknown"
+    fi
+}
+
+# ------------------------------------------------------------------
+#  gh_release_download  —  download asset from GitHub release
+# ------------------------------------------------------------------
+#  Uses gh CLI if available; falls back to curl + GitHub API + wget.
+gh_release_download() {
+    local pattern="$1"
+    local output_dir="${2:-.}"
+
+    if command -v gh >/dev/null 2>&1; then
+        gh release download --repo "$GITHUB_REPO" --pattern "$pattern" --dir "$output_dir"
+    else
+        # Fallback to curl + GitHub API
+        local url
+        url=$(curl -sf "https://api.github.com/repos/$GITHUB_REPO/releases/latest" | \
+            grep "browser_download_url" | grep "$pattern" | head -1 | cut -d'"' -f4)
+        if [ -z "$url" ]; then
+            echo "ERROR: Could not find asset matching '$pattern' in latest release" >&2
+            return 1
+        fi
+        wget -q --show-progress "$url" -P "$output_dir"
+    fi
+}
+
+# ------------------------------------------------------------------
 #  start_vgl_server  —  start (or restart) the virgl server
 # ------------------------------------------------------------------
 #  Determines mode from sentinel files, ensures ANGLE symlinks,
@@ -583,9 +626,11 @@ Usage:  gpu [command] [args]
   gpu config=gl  / cfg=gl      Disable Direct3D mode (default)
 
   ── Updates ──
-  gpu update-angle             Download & install latest ANGLE build
-  gpu update-renderer          Download & install latest virglrenderer
+  gpu update-angle             Download & install latest ANGLE build (CI)
+  gpu update-renderer          Download & install latest virglrenderer (CI)
   gpu update-virgl             Same as update-renderer
+  gpu update-icd               Download & install latest ICD wrapper (CI)
+  gpu update-all               Update all GPU packages from CI
 
   ── Run an app ──
   gpu <app> [args...]          Start server (if needed) + run app
@@ -675,29 +720,59 @@ case "${1:-}" in
         ;;
 
     update-angle)
-        echo "Updating angle-android..."
-        cd && rm -f "$HOME/angle-android_2.1.2-latest.deb"
-        wget -q --show-progress \
-            https://github.com/ar37-rs/virgl-angle/releases/download/latest/angle-android_2.1.2-latest.deb
+        echo "Updating angle-android from CI build..."
         kill_vgl_server
-        dpkg -i "$HOME/angle-android_2.1.2-latest.deb"
+        if gh_release_download "angle-android*.pkg.tar.xz" "$HOME"; then
+            PKG_FILE=$(ls "$HOME"/angle-android*.pkg.tar.xz 2>/dev/null | head -1)
+            if [ -n "$PKG_FILE" ]; then
+                pacman -U --noconfirm "$PKG_FILE"
+                rm -f "$PKG_FILE"
+                echo "angle-android updated."
+            fi
+        fi
         sleep 1
         start_vgl_server
-        rm -f "$HOME/angle-android_2.1.2-latest.deb"
         echo "done."
         ;;
 
     update-renderer|update-virgl)
-        echo "Updating virglrenderer..."
-        cd && rm -f "$HOME/virglrenderer_1.1.1-latest_aarch64.deb"
-        wget -q --show-progress \
-            https://github.com/ar37-rs/virgl-angle/releases/download/latest/virglrenderer_1.1.1-latest_aarch64.deb
-        dpkg -i "$HOME/virglrenderer_1.1.1-latest_aarch64.deb"
+        echo "Updating virglrenderer from CI build..."
         kill_vgl_server
+        if gh_release_download "virglrenderer*.pkg.tar.xz" "$HOME"; then
+            PKG_FILE=$(ls "$HOME"/virglrenderer*.pkg.tar.xz 2>/dev/null | head -1)
+            if [ -n "$PKG_FILE" ]; then
+                pacman -U --noconfirm "$PKG_FILE"
+                rm -f "$PKG_FILE"
+                echo "virglrenderer updated."
+            fi
+        fi
         sleep 1
         start_vgl_server
-        rm -f "$HOME/virglrenderer_1.1.1-latest_aarch64.deb"
         echo "done."
+        ;;
+
+    update-icd)
+        echo "Updating mesa-vulkan-icd-wrapper from CI build..."
+        if gh_release_download "mesa-vulkan-icd-wrapper*.pkg.tar.xz" "$HOME"; then
+            PKG_FILE=$(ls "$HOME"/mesa-vulkan-icd-wrapper*.pkg.tar.xz 2>/dev/null | head -1)
+            if [ -n "$PKG_FILE" ]; then
+                pacman -U --noconfirm "$PKG_FILE"
+                rm -f "$PKG_FILE"
+                echo "ICD wrapper updated."
+            fi
+        fi
+        echo "done."
+        ;;
+
+    update-all)
+        echo "Updating all GPU packages from CI build..."
+        for subcmd in update-renderer update-angle update-icd; do
+            echo ""
+            echo "--- $subcmd ---"
+            "$0" "$subcmd"
+        done
+        echo ""
+        echo "All packages updated."
         ;;
 
     *)
