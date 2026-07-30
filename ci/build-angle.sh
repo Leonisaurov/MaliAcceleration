@@ -57,28 +57,25 @@ if [ -f "$HWBUF" ] && grep -q "1UL << 32" "$HWBUF" 2>/dev/null; then
     sed -i 's/1UL << 32/1ULL << 32/g' "$HWBUF"
 fi
 
-# 2. libnativewindow: NDK r27 moved it. Create symlinks for all ANGLE targets.
+# 2. libnativewindow: NDK r27 tiene libnativewindow por target en subdirs de API level
 echo "Creating libnativewindow symlinks for ANGLE targets..."
 NDK_SYSROOT_LIB="$NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib"
 
-# Find any libnativewindow.so in NDK (from any API level)
-NATIVEWINDOW_SRC=$(find "$NDK_DIR" -name "libnativewindow.so" -type f -print -quit 2>/dev/null || true)
-
-if [ -n "$NATIVEWINDOW_SRC" ]; then
-    echo "  Found libnativewindow at: $NATIVEWINDOW_SRC"
-    # Ensure symlink/copy exists for all targets ANGLE compiles for
-    for target in aarch64-linux-android arm-linux-androideabi i686-linux-android x86_64-linux-android; do
-        target_dir="$NDK_SYSROOT_LIB/$target"
-        if [ ! -f "$target_dir/libnativewindow.so" ]; then
+for target in aarch64-linux-android arm-linux-androideabi i686-linux-android x86_64-linux-android; do
+    target_dir="$NDK_SYSROOT_LIB/$target"
+    if [ ! -f "$target_dir/libnativewindow.so" ]; then
+        # Buscar dentro del directorio del target en cualquier subdirectorio de API level
+        native_src=$(find "$target_dir" -name "libnativewindow.so" -type f -print -quit 2>/dev/null || true)
+        if [ -n "$native_src" ]; then
             mkdir -p "$target_dir"
-            cp -n "$NATIVEWINDOW_SRC" "$target_dir/libnativewindow.so" 2>/dev/null || \
-            ln -sf "$NATIVEWINDOW_SRC" "$target_dir/libnativewindow.so" 2>/dev/null || true
-            echo "    [+] $target"
+            cp -n "$native_src" "$target_dir/libnativewindow.so" 2>/dev/null || \
+            ln -sf "$native_src" "$target_dir/libnativewindow.so" 2>/dev/null || true
+            echo "    [+] $target (from $(basename "$(dirname "$native_src")"))"
+        else
+            echo "    [-] $target (not found)"
         fi
-    done
-else
-    echo "  WARNING: libnativewindow not found in NDK"
-fi
+    fi
+done
 
 echo ""
 
