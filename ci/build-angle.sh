@@ -79,7 +79,7 @@ done
 
 echo ""
 
-BUILD_BASE="${TMPDIR:-/tmp}/angle-build"
+BUILD_BASE="${BUILD_BASE:-${TMPDIR:-/tmp}/angle-build}"
 mkdir -p "$BUILD_BASE"
 
 # --- Determine version from ANGLE source --------------------------------
@@ -142,7 +142,7 @@ for variant in vulkan vulkan-null; do
     
     # --- GN gen ----------------------------------------------------------------
     echo "  GN gen..."
-    rm -rf "$BUILD_DIR"
+    # rm -rf "$BUILD_DIR"   # Preserved for caching - gn gen + ninja handles freshness
     cd "$ANGLE_SRC"
     gn gen "$BUILD_DIR" --args="$GN_ARGS" 2>&1 || {
         echo "ERROR: GN gen failed for $variant" >&2

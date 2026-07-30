@@ -141,6 +141,7 @@ jobs:
         run: |
           chmod +x ci/build-angle.sh
           ANGLE_SRC_DIR="$PWD/.angle-source/angle" \
+            BUILD_BASE="$PWD/.angle-source/build" \
             NDK_DIR="$ANDROID_NDK_ROOT" \
             NINJA_JOBS=2 \
             ./ci/build-angle.sh
