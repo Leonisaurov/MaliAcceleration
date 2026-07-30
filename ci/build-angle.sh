@@ -236,6 +236,16 @@ depend = vulkan-loader-generic
 EOF
 
 # --- Package as .pkg.tar.xz --------------------------------------------
+# Break hard links to avoid 'Hard-link target does not exist' warnings 
+# during package extraction (ANGLE build sometimes creates hard-linked .so files)
+echo "  Breaking hard links in package directory..."
+find "$PKG_DIR" -type f -links +1 -exec sh -c '
+  for f; do
+    tmp="${f}.$$"
+    cp -f "$f" "$tmp" && mv -f "$tmp" "$f"
+  done
+' _ {} +
+
 cd "$PKG_DIR"
 tar -cf - .PKGINFO $(find . -not -name '.PKGINFO' -not -name '.MTREE' | sed 's|^./||') | \
     xz -6 -T1 -c > "$OUTPUT_FILE"
