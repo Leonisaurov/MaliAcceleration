@@ -132,8 +132,9 @@ for variant in vulkan vulkan-null; do
         is_component_build = false
         is_debug = false
         angle_assert_always_on = false
+        android_static_analysis = 0
         ${CONFIGS[$variant]}
-        android64_ndk_api_level = ${API_LEVEL}
+        android_ndk_api_level = ${API_LEVEL}
         android_ndk_root = \"${NDK_DIR}\"
         angle_build_tests = false
         angle_expose_non_conformant_extensions_and_versions = true
