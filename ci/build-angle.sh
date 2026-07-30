@@ -162,10 +162,10 @@ for variant in vulkan vulkan-null; do
     if [ ! -f "$APK_PATH" ]; then
         echo "WARNING: AngleLibraries.apk not found, looking for .so files directly..."
         # Some ANGLE versions output .so files directly
-        find "$BUILD_DIR" -name "*.so" -path "*/lib/*" 2>/dev/null | head -10
+        find "$BUILD_DIR" -name "*.so" -path "*/lib/*" 2>/dev/null | head -10 || true
         # Try direct lib output
         SO_DIR="$BUILD_DIR"
-        find "$SO_DIR" -name "libEGL*" -o -name "libGLES*" -o -name "libVk*" 2>/dev/null | head -10
+        find "$SO_DIR" -name "libEGL*" -o -name "libGLES*" -o -name "libVk*" 2>/dev/null | head -10 || true
         
         # Fallback: look for .so in common locations
         SO_FILES=$(find "$BUILD_DIR" -name "libEGL_angle.so" -o -name "libGLESv2_angle.so" -o -name "libGLESv1_CM_angle.so" 2>/dev/null)
@@ -208,7 +208,7 @@ for variant in vulkan vulkan-null; do
         if [ -z "$(ls -A "$INSTALL_DIR" 2>/dev/null)" ]; then
             echo "ERROR: No .so files found in extracted APK for $variant" >&2
             echo "Contents of extract dir:"
-            find "$EXTRACT_DIR" -name "*.so" 2>/dev/null | head -20
+            find "$EXTRACT_DIR" -name "*.so" 2>/dev/null | head -20 || true
             exit 1
         fi
     fi
@@ -246,5 +246,5 @@ echo "Install: pacman -U $(basename "$OUTPUT_FILE")"
 # --- Verify package contents --------------------------------------------
 echo ""
 echo "=== Package contents ==="
-tar -tJf "$OUTPUT_FILE" | grep -E "\.so$" | head -20
-echo "... ($(tar -tJf "$OUTPUT_FILE" | grep -c "\.so$") .so files total)"
+tar -tJf "$OUTPUT_FILE" | grep -E "\.so$" | head -20 || true
+echo "... .so files total"
