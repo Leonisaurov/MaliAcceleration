@@ -151,6 +151,9 @@ for variant in vulkan vulkan-null; do
     
     # --- Ninja build -----------------------------------------------------------
     echo "  Ninja build (${NINJA_JOBS} jobs)..."
+    # AUTONINJA_BUILD_ID must be set for some ANGLE APK validation targets
+    # even when using plain ninja (not autoninja/build server)
+    export AUTONINJA_BUILD_ID="${AUTONINJA_BUILD_ID:-ci}"
     ninja -C "$BUILD_DIR" -j"${NINJA_JOBS}" 2>&1 | tail -20 || {
         echo "ERROR: Ninja build failed for $variant" >&2
         exit 1
