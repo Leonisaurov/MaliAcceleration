@@ -336,7 +336,7 @@ EOF
 # --- Package as .pkg.tar.xz --------------------------------------------
 echo "Creating package..."
 cd "$PKGDIR"
-tar -cf - .PKGINFO $(find . -not -name '.PKGINFO' -not -name '.MTREE' | sed 's|^./||') | \
+tar -cf - .PKGINFO $(find . ! -name . -prune -not -name '.PKGINFO' -not -name '.MTREE' | sed 's|^\./||') | \
     xz -6 -T1 -c > "$OUTPUT_FILE"
 
 echo ""

@@ -15,4 +15,8 @@
 #  app uses the GPU.
 # =============================================================================
 
-alias gpu='env -u LIBGL_ALWAYS_SOFTWARE GALLIUM_DRIVER=virpipe MESA_GL_VERSION_OVERRIDE=4.1COMPAT MESA_GLSL_VERSION_OVERRIDE=410'
+# Persistent Mesa shader cache: reuses compiled shaders across runs so the
+# first launch of each app doesn't stutter. Stored under the proot distro's
+# $HOME (persistent on the Termux filesystem). MESA_DISK_CACHE_SINGLE_FILE=1
+# avoids hardlinks in Mesa's multi-file cache, which Termux cannot use.
+alias gpu='env -u LIBGL_ALWAYS_SOFTWARE GALLIUM_DRIVER=virpipe MESA_GL_VERSION_OVERRIDE=4.1COMPAT MESA_GLSL_VERSION_OVERRIDE=410 MESA_DISK_CACHE_SINGLE_FILE=1 MESA_DISK_CACHE_DIR=$HOME/.cache/mesa_shader_cache MESA_DISK_CACHE_MAX_SIZE=67108864'

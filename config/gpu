@@ -262,6 +262,12 @@ apply_env() {
     export MESA_NO_ERROR=1
     export MESA_BACK_BUFFER=pixmap
 
+    # Persistent Mesa shader cache (avoids 1st-run stutter)
+    mkdir -p "$HOME/.cache/mesa_shader_cache"
+    export MESA_DISK_CACHE_SINGLE_FILE=1
+    export MESA_DISK_CACHE_DIR="$HOME/.cache/mesa_shader_cache"
+    export MESA_DISK_CACHE_MAX_SIZE=67108864
+
     # Profile-specific vars
     eval "$(get_profile_vars "$profile")"
 }
@@ -381,6 +387,12 @@ gh_release_download() {
 #  Determines mode from sentinel files, ensures ANGLE symlinks,
 #  starts the server if not already running.
 start_vgl_server() {
+    # Persistent Mesa shader cache (avoids 1st-run stutter)
+    mkdir -p "$HOME/.cache/mesa_shader_cache"
+    export MESA_DISK_CACHE_SINGLE_FILE=1
+    export MESA_DISK_CACHE_DIR="$HOME/.cache/mesa_shader_cache"
+    export MESA_DISK_CACHE_MAX_SIZE=67108864
+
     local mode
     mode=$(detect_backend_mode)
 
