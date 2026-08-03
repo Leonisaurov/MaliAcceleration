@@ -1,0 +1,21 @@
+diff --git a/src/vrend/vrend_renderer.c b/src/vrend/vrend_renderer.c
+index 4bf88e0..9d7251c 100644
+--- a/src/vrend/vrend_renderer.c
++++ b/src/vrend/vrend_renderer.c
+@@ -12464,6 +12464,16 @@ static void vrend_renderer_fill_caps_v2(int gl_ver, int gles_ver,  union virgl_c
+       glGetIntegerv(GL_SHADER_STORAGE_BUFFER_OFFSET_ALIGNMENT, (GLint*)&caps->v2.shader_buffer_offset_alignment);
+ 
+       glGetIntegerv(GL_MAX_VERTEX_SHADER_STORAGE_BLOCKS, &max);
++      /* ANGLE's Vulkan backend reports 0 for vertex shader storage blocks
++       * even though it supports SSBOs in vertex shaders (fragment/compute
++       * report a real value). Fall back to the fragment value so the guest
++       * exposes a usable limit. */
++      if (max == 0) {
++         GLint frag_blocks = 0;
++         glGetIntegerv(GL_MAX_FRAGMENT_SHADER_STORAGE_BLOCKS, &frag_blocks);
++         if (frag_blocks > 0)
++            max = frag_blocks;
++      }
+       caps->v2.max_shader_buffer_other_stages = MIN2(max, PIPE_MAX_SHADER_BUFFERS);
+       caps->v2.max_shader_storage_blocks[PIPE_SHADER_VERTEX] = caps->v2.max_shader_buffer_other_stages;
+       glGetIntegerv(GL_MAX_FRAGMENT_SHADER_STORAGE_BLOCKS, &max);

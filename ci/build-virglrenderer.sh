@@ -71,6 +71,20 @@ fi
 
 cd "$SOURCE_DIR"
 
+# --- Apply ANGLE vertex-SSBO fallback patch -----------------------------
+# ANGLE's Vulkan backend reports GL_MAX_VERTEX_SHADER_STORAGE_BLOCKS=0 even
+# though it supports SSBOs in vertex shaders. Fall back to the fragment
+# value so the guest exposes a usable limit (fixes Ghostty "Too many vertex
+# shader storage blocks").
+if [ -f "$SCRIPT_DIR/virglrenderer-ssbo-vertex-fallback.patch" ]; then
+    echo "Applying virglrenderer SSBO vertex fallback patch..."
+    patch -p1 -N < "$SCRIPT_DIR/virglrenderer-ssbo-vertex-fallback.patch" || {
+        echo "ERROR: failed to apply SSBO patch"; exit 1;
+    }
+else
+    echo "WARNING: $SCRIPT_DIR/virglrenderer-ssbo-vertex-fallback.patch not found — building WITHOUT SSBO fallback"
+fi
+
 # --- Debug: check sysroot contents --------------------------------------
 echo "=== Debug: Sysroot pkg-config files ==="
 find "$SYSROOT_DIR" -name "*.pc" 2>/dev/null | head -30 | sort || true
