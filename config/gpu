@@ -411,7 +411,7 @@ start_vgl_server() {
 
         if ! server_running; then
             echo "Starting virgl server (native android)..."
-            "$server" &
+            "$server" --socket-path "$PREFIX/tmp/.virgl_test" &
             sleep 1
         fi
         echo "using virgl android."
@@ -421,8 +421,10 @@ start_vgl_server() {
 
         if ! server_running; then
             echo "Starting virgl server (ANGLE → ${mode})..."
+            # Termux: /tmp is not writable (owned by shell). Mesa's virgl client
+            # looks for the socket in $PREFIX/tmp/.virgl_test, so create it there.
             LD_LIBRARY_PATH="$ANGLE_BASE/$mode" \
-                virgl_test_server --use-egl-surfaceless --use-gles &
+                virgl_test_server --use-egl-surfaceless --use-gles --socket-path "$PREFIX/tmp/.virgl_test" &
             sleep 1
         fi
 
