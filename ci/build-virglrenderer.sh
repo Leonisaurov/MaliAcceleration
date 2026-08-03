@@ -291,7 +291,7 @@ if [ ! -d "build/meson-info" ]; then
     TERMUX_PREFIX="/data/data/com.termux/files/usr"
     
     CFLAGS="--sysroot=$NDK_SYSROOT -isystem $SYSROOT_DIR$TERMUX_PREFIX/include -include $NDK_SYSROOT/usr/include/pthread_barrier_compat.h -O2 -Wno-error=gnu-offsetof-extensions" \
-    LDFLAGS="--sysroot=$NDK_SYSROOT -L$SYSROOT_DIR$TERMUX_PREFIX/lib" \
+    LDFLAGS="--sysroot=$NDK_SYSROOT -L$SYSROOT_DIR$TERMUX_PREFIX/lib -Wl,-rpath=/data/data/com.termux/files/usr/lib -Wl,--enable-new-dtags" \
     PKG_CONFIG_LIBDIR="$PKG_CONFIG_LIBDIR" \
     PKG_CONFIG_SYSROOT_DIR="$PKG_CONFIG_SYSROOT_DIR" \
     meson setup build \
@@ -327,6 +327,10 @@ fi
 echo "Stripping..."
 find "$PKGDIR" -type f \( -name '*.so*' -o -name 'virgl_test_server*' \) \
     -exec "$NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip" --strip-all {} \; 2>/dev/null || true
+
+# --- Apply Termux ELF cleaner (official Termux packaging format) --------
+echo "Applying termux-elf-cleaner..."
+"$SCRIPT_DIR/termux-elf-clean.sh" "$PKGDIR"
 
 # --- Generate .PKGINFO -------------------------------------------------
 PKG_SIZE=$(du -sk "$PKGDIR" | awk '{print $1 * 1024}')

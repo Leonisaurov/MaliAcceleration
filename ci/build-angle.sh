@@ -138,6 +138,7 @@ for variant in vulkan vulkan-null; do
         android_ndk_root = \"${NDK_DIR}\"
         angle_build_tests = false
         angle_expose_non_conformant_extensions_and_versions = true
+        extra_ldflags = [ \"-Wl,-rpath=/data/data/com.termux/files/usr/lib\", \"-Wl,--enable-new-dtags\" ]
     "
     
     # --- GN gen ----------------------------------------------------------------
@@ -219,6 +220,10 @@ for variant in vulkan vulkan-null; do
     
     echo "  $variant: $(ls -1 "$INSTALL_DIR" 2>/dev/null | wc -l) .so files"
 done
+
+# --- Apply Termux ELF cleaner (official Termux packaging format) --------
+echo "Applying termux-elf-cleaner..."
+"$SCRIPT_DIR/termux-elf-clean.sh" "$PKG_DIR"
 
 echo ""
 echo "=== Creating .PKGINFO and packaging ==="
