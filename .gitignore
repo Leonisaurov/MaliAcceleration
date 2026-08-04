@@ -7,3 +7,6 @@ Thumbs.db
 # Generated packages
 *.pkg.tar.xz
 packages/*.deb
+# PoC ghostty-vt binaries
+poc/ghostty-vt/poc_vt
+poc/ghostty-vt/poc_x11
