@@ -10,3 +10,4 @@ packages/*.deb
 # PoC ghostty-vt binaries
 poc/ghostty-vt/poc_vt
 poc/ghostty-vt/poc_x11
+poc/ghostty-vt/poc_ghostty_term

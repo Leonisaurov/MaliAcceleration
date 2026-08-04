@@ -179,8 +179,113 @@ shm y se escribe directo (cero copias).
 
 - [x] FASE 1 — motor VT validado (`poc_vt.c`)
 - [x] FASE 2 — renderer **CPU** (FreeType + XShm) a termux-x11 (`poc_x11.c`)
+- [x] FASE 2.5 — terminal **interactivo** (PTY + teclado X11, renderer CPU) (`poc_ghostty_term.c`)
 - [ ] FASE 3 — renderer GPU (GLES) — aparte, aún no implementado
 
 Verificado en ejecución: `X11: MIT-SHM OK (480x240)`, proceso vivo en loop
 hasta que el timeout lo mata (exit 124). El usuario confirma visualmente la
 ventana.
+
+---
+
+# PoC: terminal interactivo Ghostty en termux-x11 (FASE 2.5)
+
+`poc_ghostty_term.c` (1034 líneas) convierte el PoC estático (poc_x11.c) en un
+**terminal usable**: un shell real corriendo en un PTY, teclado X11
+funcionando, redibujo por invalidación y resize de ventana:
+
+- **PTY + shell real**: `posix_openpt` + `grantpt` + `unlockpt` + `fork` +
+  `setsid` + `TIOCSCTTY` + `dup2` + `exec($SHELL)`. El hijo corre `bash`; el
+  padre lee el master (O_NONBLOCK) y lo inyecta con
+  `ghostty_terminal_vt_write`.
+- **Teclado X11**: cada `KeyPress` se convierte con el key encoder de ghostty
+  (`ghostty_key_encoder_new` + `setopt_from_terminal` + `encode`), que produce
+  las secuencias VT correctas según el estado del terminal (cursor key app
+  mode, kitty flags...). Fallback: texto UTF-8 de `XLookupString` para
+  keysyms sin mapear (ñ, puntuación exótica, Ctrl+algo).
+- **Redibujo por invalidación**: `select()` sobre pty + conexión X + timeout
+  de 50ms para el blink del cursor. Solo se redibuja cuando el pty produjo
+  datos, hubo `Expose`/`ConfigureNotify` o cambia la fase del blink.
+- **Cursor**: bloque/bar/underline en `CURSOR_VIEWPORT_X/Y` del render state,
+  con blink (`CURSOR_BLINKING`) y color (`COLOR_CURSOR`).
+- **Resize**: `ConfigureNotify` → cols/rows = w/CELL_W, h/CELL_H →
+  `ghostty_terminal_resize` + `ioctl(TIOCSWINSZ)` al pty + se recrea el buffer
+  XShm.
+- **`write_pty` callback**: responde queries del shell (DSR/DECRQM/XTVERSION)
+  escribiendo al master del pty.
+
+El renderer sigue siendo **CPU** (FreeType + XShmPutImage) — la FASE 3 (GLES)
+es aparte.
+
+## Compilar
+
+```bash
+cd poc/ghostty-vt
+clang -o poc_ghostty_term poc_ghostty_term.c \
+  -I$PREFIX/include -L$PREFIX/lib \
+  -lghostty-vt -lX11 -lXext -lfreetype -landroid-shmem -lutil \
+  $(pkg-config --cflags freetype2)
+```
+
+## Ejecutar
+
+Con termux-x11 activo (DISPLAY=:0):
+
+```bash
+DISPLAY=:0 ./poc_ghostty_term
+```
+
+- Abre una ventana "Ghostty terminal — PTY interactivo (CPU render)" de
+  480x240 (grid 60x15 celdas, 8x16 px) con un **shell real** (`bash`).
+- Salir: escribir `exit` en el shell (PTY EOF), o cerrar la ventana
+  (`DestroyNotify`).
+- Verificación rápida (el timeout matando el proceso = el loop corría bien):
+
+```bash
+timeout 5 env DISPLAY=:0 ./poc_ghostty_term; echo "exit=$?"  # 124 = OK
+```
+
+El usuario confirma visualmente el prompt del shell.
+
+## Qué se ve
+
+- El prompt del shell (`$`) renderizado por CPU con los glyphs de FreeType y
+  el **cursor parpadeando** en `CURSOR_VIEWPORT_X/Y`.
+- Al teclear, los caracteres aparecen: el echo del shell vuelve por el pty →
+  `ghostty_terminal_vt_write` → render state → redibujo.
+
+## Gotchas
+
+- **Callback `WRITE_PTY`**: el valor de `GHOSTTY_TERMINAL_OPT_WRITE_PTY` es el
+  puntero a función **en sí** casteado a `void*`:
+  `ghostty_terminal_set(term, GHOSTTY_TERMINAL_OPT_WRITE_PTY, (void*)write_pty_cb)`.
+  NO se pasa `&(GhosttyTerminalWritePtyFn){fnptr}` (dirección de un compound
+  literal en la pila): el terminal llamaría la dirección de la pila como si
+  fuera código → **SIGSEGV** al responder queries del shell (OSC 11, DECRQM,
+  kitty `?u`). Verificado con test harness.
+- **`-lutil`**: necesario por `forkpty`/`openpty` (los helpers pty viven en
+  `libutil` en glibc). En Termux `libutil.so` es un stub `INPUT(-lc)` que
+  re-exporta libc, así que la flag es inofensiva; se mantiene por
+  portabilidad del link.
+- **Teclado**: X11 no mapea keysyms a `GhosttyKey` directamente. El PoC usa
+  `ghostty_key_encoder_new` + `ghostty_key_encoder_setopt_from_terminal` +
+  `ghostty_key_encoder_encode` con un **mapeo manual keysym→GhosttyKey**
+  (letras/dígitos, puntuación US incl. versión shiftada — `XK_exclam` →
+  `DIGIT_1` — y teclas especiales). Modificadores X11 → `GhosttyMods`
+  (`ShiftMask`→`SHIFT`, `ControlMask`→`CTRL`, `Mod1Mask`→`ALT`,
+  `Mod4Mask`→`SUPER`, `LockMask`→`CAPS_LOCK`, `Mod2Mask`→`NUM_LOCK`).
+  Keysyms sin mapear con texto UTF-8 se escriben directo (`XLookupString`).
+- **Cursor**: se lee del render state: `CURSOR_VISIBLE`,
+  `CURSOR_VIEWPORT_HAS_VALUE`/`X`/`Y`, `CURSOR_BLINKING` (blink de 530ms
+  manejado por el PoC), `CURSOR_VISUAL_STYLE` (block/bar/underline/hollow) y
+  `COLOR_CURSOR` (+ `_HAS_VALUE`).
+- **Loop `select()`**: un solo `select()` sobre el fd master del pty +
+  `ConnectionNumber(dpy)` de X + timeout de 50ms para el blink. Redibuja solo
+  si: pty produjo datos, `Expose`/`ConfigureNotify` (resize → `resize` +
+  `ioctl(TIOCSWINSZ)` + recrear buffer XShm) o cambia la fase del blink. El
+  master está en O_NONBLOCK; `select() == -1 && errno == EINTR` → `continue`.
+
+## Estado
+
+- [x] FASE 2.5 — terminal interactivo (PTY + teclado, renderer CPU)
+- [ ] FASE 3 — renderer GPU (GLES) — aparte, aún no implementado
